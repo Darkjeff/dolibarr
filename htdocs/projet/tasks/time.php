@@ -288,13 +288,13 @@ if (($id > 0 || ! empty($ref)) || $projectidforalltimes > 0)
     {
         $result=$projectstatic->fetch($projectidforalltimes);
         if (! empty($projectstatic->socid)) $projectstatic->fetch_thirdparty();
-        $res=$projectstatic->fetch_optionals($object->id,$extralabels_projet);
+        $res=$projectstatic->fetch_optionals();
     }
     elseif ($object->fetch($id, $ref) >= 0)
 	{
 		$result=$projectstatic->fetch($object->fk_project);
 		if (! empty($projectstatic->socid)) $projectstatic->fetch_thirdparty();
-		$res=$projectstatic->fetch_optionals($object->id,$extralabels_projet);
+		$res=$projectstatic->fetch_optionals();
 
 		$object->project = clone $projectstatic;
     }
@@ -349,9 +349,12 @@ if (($id > 0 || ! empty($ref)) || $projectidforalltimes > 0)
 
             // Date start - end
             print '<tr><td>'.$langs->trans("DateStart").' - '.$langs->trans("DateEnd").'</td><td>';
-            print dol_print_date($projectstatic->date_start,'day');
-            $end=dol_print_date($projectstatic->date_end,'day');
-            if ($end) print ' - '.$end;
+            $start = dol_print_date($projectstatic->date_start,'day');
+            print ($start?$start:'?');
+            $end = dol_print_date($projectstatic->date_end,'day');
+            print ' - ';
+            print ($end?$end:'?');
+            if ($projectstatic->hasDelay()) print img_warning("Late");
             print '</td></tr>';
 
             // Budget

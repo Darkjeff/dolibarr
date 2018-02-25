@@ -53,11 +53,12 @@ $result = restrictedArea($user, 'categorie', $id, '&category');
 
 $object = new Categorie($db);
 $result=$object->fetch($id, $label);
-$object->fetch_optionals($id,$extralabels);
-if ($result <= 0)
-{
-	dol_print_error($db,$object->error);
-	exit;
+if ($result <= 0) {
+	dol_print_error($db,$object->error); exit;
+}
+$object->fetch_optionals();
+if ($result <= 0) {
+	dol_print_error($db,$object->error); exit;
 }
 
 $type=$object->type;
@@ -67,13 +68,14 @@ $extrafields = new ExtraFields($db);
 $extralabels = $extrafields->fetch_name_optionals_label($object->table_element);
 
 // Initialize technical object to manage hooks. Note that conf->hooks_modules contains array array
-$hookmanager->initHooks(array('categorycard'));
+$hookmanager->initHooks(array('categorycard','globalcard'));
 
 
 /*
  *	Actions
  */
-
+$parameters=array();
+$reshook=$hookmanager->executeHooks('doActions',$parameters,$object,$action);    // Note that $action and $object may have been modified by some hooks
 // Remove element from category
 if ($id > 0 && $removeelem > 0)
 {

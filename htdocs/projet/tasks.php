@@ -207,7 +207,7 @@ if ($id > 0 || ! empty($ref))
 {
 	$object->fetch($id, $ref);
 	$object->fetch_thirdparty();
-	$res=$object->fetch_optionals($object->id,$extralabels_projet);
+	$res=$object->fetch_optionals();
 
 
 	// To verify role of users
@@ -281,9 +281,9 @@ if ($id > 0 || ! empty($ref))
 
     // Date start - end
     print '<tr><td>'.$langs->trans("DateStart").' - '.$langs->trans("DateEnd").'</td><td>';
-    $start = dol_print_date($object->date_start,'dayhour');
+    $start = dol_print_date($object->date_start,'day');
     print ($start?$start:'?');
-    $end = dol_print_date($object->date_end,'dayhour');
+    $end = dol_print_date($object->date_end,'day');
     print ' - ';
     print ($end?$end:'?');
     if ($object->hasDelay()) print img_warning("Late");

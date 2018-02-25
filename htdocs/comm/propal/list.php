@@ -41,15 +41,9 @@ require_once DOL_DOCUMENT_ROOT.'/core/class/html.formcompany.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/date.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/comm/propal/class/propal.class.php';
-if (! empty($conf->projet->enabled))
-	require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
+require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 
-$langs->load('companies');
-$langs->load('propal');
-$langs->load('compta');
-$langs->load('bills');
-$langs->load('orders');
-$langs->load('products');
+$langs->loadLangs(array('companies','propal','compta','bills','orders','products'));
 
 $socid=GETPOST('socid','int');
 
@@ -141,7 +135,7 @@ $checkedtypetiers=0;
 $arrayfields=array(
 	'p.ref'=>array('label'=>$langs->trans("Ref"), 'checked'=>1),
 	'p.ref_client'=>array('label'=>$langs->trans("RefCustomer"), 'checked'=>1),
-	'pr.ref'=>array('label'=>$langs->trans("Project"), 'checked'=>1, 'enabled'=>(empty($conf->projet->enabled)?0:1)),
+	'pr.ref'=>array('label'=>$langs->trans("ProjectRef"), 'checked'=>1, 'enabled'=>(empty($conf->projet->enabled)?0:1)),
 	's.nom'=>array('label'=>$langs->trans("ThirdParty"), 'checked'=>1),
 	's.town'=>array('label'=>$langs->trans("Town"), 'checked'=>1),
 	's.zip'=>array('label'=>$langs->trans("Zip"), 'checked'=>1),
@@ -237,6 +231,7 @@ $formother = new FormOther($db);
 $formfile = new FormFile($db);
 $formpropal = new FormPropal($db);
 $companystatic=new Societe($db);
+$projectstatic=new Project($db);
 $formcompany=new FormCompany($db);
 
 $help_url='EN:Commercial_Proposals|FR:Proposition_commerciale|ES:Presupuestos';
@@ -897,25 +892,18 @@ if ($resql)
 
 	print '</form>'."\n";
 
-	if ($massaction == 'builddoc' || $action == 'remove_file' || $show_files)
-	{
-		/*
-	     * Show list of available documents
-	     */
-		$urlsource=$_SERVER['PHP_SELF'].'?sortfield='.$sortfield.'&sortorder='.$sortorder;
-		$urlsource.=str_replace('&amp;','&',$param);
+	$hidegeneratedfilelistifempty=1;
+	if ($massaction == 'builddoc' || $action == 'remove_file' || $show_files) $hidegeneratedfilelistifempty=0;
 
-		$filedir=$diroutputmassaction;
-		$genallowed=$user->rights->propal->lire;
-		$delallowed=$user->rights->propal->creer;
+	// Show list of available documents
+	$urlsource=$_SERVER['PHP_SELF'].'?sortfield='.$sortfield.'&sortorder='.$sortorder;
+	$urlsource.=str_replace('&amp;','&',$param);
 
-		print $formfile->showdocuments('massfilesarea_proposals','',$filedir,$urlsource,0,$delallowed,'',1,1,0,48,1,$param,'','');
-	}
-	else
-	{
-		print '<br><a name="show_files"></a><a href="'.$_SERVER["PHP_SELF"].'?show_files=1'.$param.'#show_files">'.$langs->trans("ShowTempMassFilesArea").'</a>';
-	}
+	$filedir=$diroutputmassaction;
+	$genallowed=$user->rights->propal->lire;
+	$delallowed=$user->rights->propal->creer;
 
+	print $formfile->showdocuments('massfilesarea_proposals','',$filedir,$urlsource,0,$delallowed,'',1,1,0,48,1,$param,$title,'','','',null,$hidegeneratedfilelistifempty);
 }
 else
 {

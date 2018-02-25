@@ -107,7 +107,7 @@ if ($action == 'add' && $user->rights->adherent->configurer)
 	$object->subscription	= (int) trim($subscription);
 	$object->note			= trim($comment);
 	$object->mail_valid		= trim($mail_valid);
-	$object->vote			= trim($vote);
+	$object->vote			= (boolean) trim($vote);
 
 	// Fill array 'array_options' with data from add form
 	$ret = $extrafields->setOptionalsFromPost($extralabels,$object);
@@ -160,7 +160,7 @@ if ($action == 'update' && $user->rights->adherent->configurer)
 	$object->subscription	= (int) trim($subscription);
 	$object->note			= trim($comment);
 	$object->mail_valid		= trim($mail_valid);
-	$object->vote			= trim($vote);
+	$object->vote			= (boolean) trim($vote);
 
 	// Fill array 'array_options' with data from add form
 	$ret = $extrafields->setOptionalsFromPost($extralabels,$object);
@@ -361,7 +361,7 @@ if ($rowid > 0)
 	{
 		$object = new AdherentType($db);
 		$object->fetch($rowid);
-		$object->fetch_optionals($object->id,$extralabels);
+		$object->fetch_optionals();
 
 		/*
 		 * Confirmation suppression
@@ -692,7 +692,7 @@ if ($rowid > 0)
 	{
 		$object = new AdherentType($db);
 		$object->fetch($rowid);
-		$object->fetch_optionals($object->id,$extralabels);
+		$object->fetch_optionals();
 
 		$head = member_type_prepare_head($object);
 

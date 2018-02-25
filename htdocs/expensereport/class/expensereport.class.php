@@ -341,11 +341,6 @@ class ExpenseReport extends CommonObject
                 $reshook=$hookmanager->executeHooks('createFrom',$parameters,$this,$action);    // Note that $action and $object may have been modified by some hooks
                 if ($reshook < 0) $error++;
             }
-
-            // Call trigger
-            $result=$this->call_trigger('EXPENSEREPORT_CLONE',$user);
-            if ($result < 0) $error++;
-            // End call triggers
         }
 
         unset($this->context['createfromclone']);
@@ -1091,7 +1086,7 @@ class ExpenseReport extends CommonObject
 		{
             $num = $this->ref;
         }
-        if (empty($num)) return -1;
+        if (empty($num) || $num < 0) return -1;
 
         $this->newref = $num;
 

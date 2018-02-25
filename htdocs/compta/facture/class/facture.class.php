@@ -557,6 +557,15 @@ class Facture extends CommonInvoice
 						}
 
 						$newinvoiceline->fk_parent_line=$fk_parent_line;
+
+						if($this->type === Facture::TYPE_REPLACEMENT && $newinvoiceline->fk_remise_except){
+                            $discount = new DiscountAbsolute($this->db);
+                            $discount->fetch($newinvoiceline->fk_remise_except);
+
+						    $discountId = $soc->set_remise_except($discount->amount_ht, $user, $discount->description, $discount->tva_tx);
+						    $newinvoiceline->fk_remise_except = $discountId;
+                        }
+
 						$result=$newinvoiceline->insert();
 
 						// Defined the new fk_parent_line
@@ -790,14 +799,17 @@ class Facture extends CommonInvoice
 		// Charge facture source
 		$facture=new Facture($this->db);
 
-                $this->fetch_optionals();
-                if(!empty($this->array_options)){
-                    $facture->array_options = $this->array_options;
-                }
+		// Retreive all extrafield
+		// fetch optionals attributes and labels
+		$this->fetch_optionals();
 
-                foreach($this->lines as &$line){
+        if(!empty($this->array_options)){
+                    $facture->array_options = $this->array_options;
+        }
+
+        foreach($this->lines as &$line){
                     $line->fetch_optionals();//fetch extrafields
-                }
+        }
 
 		$facture->fk_facture_source = $this->fk_facture_source;
 		$facture->type 			    = $this->type;
@@ -958,11 +970,6 @@ class Facture extends CommonInvoice
 				$reshook=$hookmanager->executeHooks('createFrom',$parameters,$this,$action);    // Note that $action and $object may have been modified by some hooks
 				if ($reshook < 0) $error++;
 			}
-
-            // Call trigger
-            $result=$this->call_trigger('BILL_CLONE',$user);
-            if ($result < 0) $error++;
-            // End call triggers
 		}
 
 		unset($this->context['createfromclone']);
@@ -1033,7 +1040,7 @@ class Facture extends CommonInvoice
 			$line->pa_ht			= $marginInfos[0];
 
             // get extrafields from original line
-			$object->lines[$i]->fetch_optionals($object->lines[$i]->rowid);
+			$object->lines[$i]->fetch_optionals();
 			foreach($object->lines[$i]->array_options as $options_key => $value)
 				$line->array_options[$options_key] = $value;
 
@@ -1163,9 +1170,9 @@ class Facture extends CommonInvoice
                 $label.= '<br><b>' . $langs->trans('AmountHT') . ':</b> ' . price($this->total_ht, 0, $langs, 0, -1, -1, $conf->currency);
             if (! empty($this->total_tva))
                 $label.= '<br><b>' . $langs->trans('VAT') . ':</b> ' . price($this->total_tva, 0, $langs, 0, -1, -1, $conf->currency);
-            if (! empty($this->total_tva))
+            if (! empty($this->total_localtax1))
                 $label.= '<br><b>' . $langs->trans('LT1') . ':</b> ' . price($this->total_localtax1, 0, $langs, 0, -1, -1, $conf->currency);
-            if (! empty($this->total_tva))
+            if (! empty($this->total_localtax2))
                 $label.= '<br><b>' . $langs->trans('LT2') . ':</b> ' . price($this->total_localtax2, 0, $langs, 0, -1, -1, $conf->currency);
             if (! empty($this->total_ttc))
                 $label.= '<br><b>' . $langs->trans('AmountTTC') . ':</b> ' . price($this->total_ttc, 0, $langs, 0, -1, -1, $conf->currency);
@@ -1333,16 +1340,13 @@ class Facture extends CommonInvoice
 
 				if ($this->statut == self::STATUS_DRAFT)	$this->brouillon = 1;
 
-				// Retrieve all extrafield for invoice
+				// Retreive all extrafield
 				// fetch optionals attributes and labels
-				require_once DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php';
-				$extrafields=new ExtraFields($this->db);
-				$extralabels=$extrafields->fetch_name_optionals_label($this->table_element,true);
-				$this->fetch_optionals($this->id,$extralabels);
+				$this->fetch_optionals();
 
 				/*
 				 * Lines
-				*/
+				 */
 
 				$this->lines  = array();
 
@@ -3004,6 +3008,9 @@ class Facture extends CommonInvoice
 		$line->total_ttc = $tabprice[2];
 		$line->total_localtax1 = $tabprice[9];
 		$line->total_localtax2 = $tabprice[10];
+		$line->multicurrency_total_ht  = $tabprice[16];
+		$line->multicurrency_total_tva = $tabprice[17];
+		$line->multicurrency_total_ttc = $tabprice[18];
 		$line->update($user);
 		$this->update_price(1);
 		$this->db->commit();
@@ -3232,7 +3239,6 @@ class Facture extends CommonInvoice
 		$sql = 'SELECT p.ref, pf.amount, pf.multicurrency_amount, p.fk_paiement, p.datep, p.num_paiement as num, t.code';
 		$sql.= ' FROM '.MAIN_DB_PREFIX.$table.' as pf, '.MAIN_DB_PREFIX.$table2.' as p, '.MAIN_DB_PREFIX.'c_paiement as t';
 		$sql.= ' WHERE pf.'.$field.' = '.$this->id;
-		//$sql.= ' WHERE pf.'.$field.' = 1';
 		$sql.= ' AND pf.'.$field2.' = p.rowid';
 		$sql.= ' AND p.fk_paiement = t.id';
 		$sql.= ' AND p.entity IN (' . getEntity($sharedentity).')';

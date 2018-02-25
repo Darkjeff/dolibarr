@@ -465,7 +465,10 @@ class ActionComm extends CommonObject
 		// Load source object
 		$objFrom = clone $this;
 
+		// Retreive all extrafield
+		// fetch optionals attributes and labels
 		$this->fetch_optionals();
+
 //		$this->fetch_userassigned();
 		$this->fetchResources();
 
@@ -1048,7 +1051,7 @@ class ActionComm extends CommonObject
 	    		$response = new WorkboardResponse();
 	    		$response->warning_delay = $conf->agenda->warning_delay/60/60/24;
 	    		$response->label = $langs->trans("ActionsToDo");
-	    		$response->url = DOL_URL_ROOT.'/comm/action/list.php?status=todo&amp;mainmenu=agenda';
+	    		$response->url = DOL_URL_ROOT.'/comm/action/list.php?actioncode=0&amp;status=todo&amp;mainmenu=agenda';
 	    		if ($user->rights->agenda->allactions->read) $response->url.='&amp;filtert=-1';
 	    		$response->img = img_object('',"action",'class="inline-block valigntextmiddle"');
     		}
@@ -1633,6 +1636,7 @@ class ActionComm extends CommonObject
 
     	if (empty($conf->global->AGENDA_REMINDER_EMAIL))
     	{
+    		$langs->load("agenda");
     		$this->output = $langs->trans('EventRemindersByEmailNotEnabled', $langs->transnoentitiesnoconv("Agenda"));
     		return 0;
     	}

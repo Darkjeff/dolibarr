@@ -261,9 +261,10 @@ class Contrat extends CommonObject
 	 *
 	 *  @param	User		$user      		Object User making action
 	 *  @param	int|string	$date_start		Date start (now if empty)
+     *  @param	int			$notrigger		1=Does not execute triggers, 0=Execute triggers
 	 *	@return	int							<0 if KO, >0 if OK
 	 */
-	function activateAll($user, $date_start='')
+	function activateAll($user, $date_start='', $notrigger=0)
 	{
 		if (empty($date_start)) $date_start = dol_now();
 
@@ -272,35 +273,39 @@ class Contrat extends CommonObject
 		// Load lines
 		$this->fetch_lines();
 
-		$ok=true;
+		$error=0;
+
 		foreach($this->lines as $contratline)
 		{
 			// Open lines not already open
 			if ($contratline->statut != 4)
 			{
+				$contratline->context = $this->context;
+
 				$result = $contratline->active_line($user, $date_start, -1);
 				if ($result < 0)
 				{
-					$ok=false;
+					$error++;
+					$this->error = $contratline->error;
+					$this->errors = $contratline->errors;
 					break;
 				}
 			}
 		}
 
-		if ($this->statut == 0)
+		if (! $error && $this->statut == 0)
 		{
-			$result=$this->validate($user);
-			if ($result < 0) $ok=false;
+			$result=$this->validate($user, '', $notrigger);
+			if ($result < 0) $error++;
 		}
 
-		if ($ok)
+		if (! $error)
 		{
 			$this->db->commit();
 			return 1;
 		}
 		else
 		{
-			dol_print_error($this->db,'Error in activateAll function');
 			$this->db->rollback();
 			return -1;
 		}
@@ -310,10 +315,11 @@ class Contrat extends CommonObject
 	 * Close all lines of a contract
 	 *
 	 * @param	User		$user      		Object User making action
-     * @param	int			$notrigger		1=Does not execute triggers, 0= execute triggers
+     * @param	int			$notrigger		1=Does not execute triggers, 0=Execute triggers
+     * @param	string		$comment		Comment
 	 * @return	int							<0 if KO, >0 if OK
 	 */
-	function closeAll(User $user, $notrigger=0)
+	function closeAll(User $user, $notrigger=0, $comment='')
 	{
 		$this->db->begin();
 
@@ -322,7 +328,8 @@ class Contrat extends CommonObject
 
 		$now = dol_now();
 
-		$ok=true;
+		$error = 0;
+
 		foreach($this->lines as $contratline)
 		{
 			// Close lines not already closed
@@ -331,29 +338,30 @@ class Contrat extends CommonObject
 				$contratline->date_cloture=$now;
 				$contratline->fk_user_cloture=$user->id;
 				$contratline->statut='5';
-				$result=$contratline->update($user);
+				$result=$contratline->close_line($user, $now, $comment, $notrigger);
 				if ($result < 0)
 				{
-					$ok=false;
+					$error++;
+					$this->error = $contratline->error;
+					$this->errors = $contratline->errors;
 					break;
 				}
 	        }
 		}
 
-		if ($this->statut == 0)
+		if (! $error && $this->statut == 0)
 		{
 			$result=$this->validate($user, '', $notrigger);
-			if ($result < 0) $ok=false;
+			if ($result < 0) $error++;
 		}
 
-        if ($ok)
+        if (! $error)
         {
             $this->db->commit();
             return 1;
         }
         else
         {
-            dol_print_error($this->db,'Error in closeAll function');
             $this->db->rollback();
             return -1;
         }
@@ -603,7 +611,7 @@ class Contrat extends CommonObject
 				$this->mise_en_service			= $this->db->jdate($result["datemise"]);
 
 				$this->date_contrat				= $this->db->jdate($result["datecontrat"]);
-				$this->date_creation				= $this->db->jdate($result["datecontrat"]);
+				$this->date_creation			= $this->db->jdate($result["datecontrat"]);
 
 				$this->fin_validite				= $this->db->jdate($result["fin_validite"]);
 				$this->date_cloture				= $this->db->jdate($result["date_cloture"]);
@@ -628,16 +636,15 @@ class Contrat extends CommonObject
 
 				$this->db->free($resql);
 
-				// Retreive all extrafield for thirdparty
+
+				// Retreive all extrafield
 				// fetch optionals attributes and labels
-				require_once(DOL_DOCUMENT_ROOT.'/core/class/extrafields.class.php');
-				$extrafields=new ExtraFields($this->db);
-				$extralabels=$extrafields->fetch_name_optionals_label($this->table_element,true);
-				$this->fetch_optionals($this->id,$extralabels);
+				$this->fetch_optionals();
+
 
 				/*
 				 * Lines
-				*/
+				 */
 
 				$this->lines  = array();
 
@@ -789,7 +796,7 @@ class Contrat extends CommonObject
 
 				// Retreive all extrafield for contract
 				// fetch optionals attributes and labels
-				$line->fetch_optionals($line->id,$extralabelsline);
+				$line->fetch_optionals();
 
 				$this->lines[$pos]			= $line;
 				$this->lines_id_index_mapper[$line->id] = $pos;
@@ -880,7 +887,6 @@ class Contrat extends CommonObject
 			$error=0;
 
 			$this->id = $this->db->last_insert_id(MAIN_DB_PREFIX."contrat");
-
 
 			// Load object modContract
 			$module=(! empty($conf->global->CONTRACT_ADDON)?$conf->global->CONTRACT_ADDON:'mod_contract_serpis');
@@ -1205,7 +1211,7 @@ class Contrat extends CommonObject
 	 *  @param  int		$notrigger	 0=launch triggers after, 1=disable triggers
 	 *  @return int     		   	 <0 if KO, >0 if OK
 	 */
-	function update($user=null, $notrigger=0)
+	function update($user, $notrigger=0)
 	{
 		global $conf, $langs;
 		$error=0;
@@ -1268,26 +1274,14 @@ class Contrat extends CommonObject
 		{
 			if (! $notrigger)
 			{
-				// Uncomment this and change MYOBJECT to your own tag if you
-				// want this action calls a trigger.
-
-				//// Call triggers
-				//$result=$this->call_trigger('MYOBJECT_MODIFY',$user);
-				//if ($result < 0) { $error++; //Do also what you must do to rollback action if trigger fail}
-				//// End call triggers
+				// Call triggers
+				$result=$this->call_trigger('CONTRACT_MODIFY',$user);
+				if ($result < 0) { $error++; }
+				// End call triggers
 				}
 			}
 
-			if (empty($conf->global->MAIN_EXTRAFIELDS_DISABLED) && is_array($this->array_options) && count($this->array_options)>0) // For avoid conflicts if trigger used
-			{
-				$result=$this->insertExtraFields();
-				if ($result < 0)
-				{
-					$error++;
-				}
-			}
-
-			if (empty($conf->global->MAIN_EXTRAFIELDS_DISABLED) && is_array($this->array_options) && count($this->array_options)>0) // For avoid conflicts if trigger used
+			if (! $error && empty($conf->global->MAIN_EXTRAFIELDS_DISABLED) && is_array($this->array_options) && count($this->array_options)>0) // For avoid conflicts if trigger used
 			{
 				$result=$this->insertExtraFields();
 				if ($result < 0)
@@ -2437,17 +2431,6 @@ class Contrat extends CommonObject
 
 		}
 
-		if (! $notrigger && empty($error))
-		{
-			// Call trigger
-			$clonedObj->old_copy=$this;
-			$result = $clonedObj->call_trigger('CONTRACT_CLONE', $user);
-			if ($result < 0) {
-				$error ++;
-			}
-			// End call triggers
-		}
-
 		unset($this->context['createfromclone']);
 
 		// End
@@ -2872,6 +2855,9 @@ class ContratLigne extends CommonObjectLine
 
 		$this->db->begin();
 
+		$this->oldcopy = new ContratLigne($this->db);
+		$this->oldcopy->fetch($this->id);
+
 		// Update request
 		$sql = "UPDATE ".MAIN_DB_PREFIX."contratdet SET";
 		$sql.= " fk_contrat=".$this->fk_contrat.",";
@@ -2911,22 +2897,14 @@ class ContratLigne extends CommonObjectLine
 
 		dol_syslog(get_class($this)."::update", LOG_DEBUG);
 		$resql = $this->db->query($sql);
-		if ($resql)
-		{
-			$contrat=new Contrat($this->db);
-			$contrat->fetch($this->fk_contrat);
-			$result=$contrat->update_statut($user);
-		}
-		else
+		if (! $resql)
 		{
 			$this->error="Error ".$this->db->lasterror();
 			$error++;
-			//return -1;
 		}
 
 		if (empty($conf->global->MAIN_EXTRAFIELDS_DISABLED) && is_array($this->array_options) && count($this->array_options)>0) // For avoid conflicts if trigger used
 		{
-
 			$result=$this->insertExtraFields();
 			if ($result < 0)
 			{
@@ -2934,19 +2912,52 @@ class ContratLigne extends CommonObjectLine
 			}
 		}
 
-		if (empty($error)) {
-		if (! $notrigger)
+		// If we change a planned date (start or end), sync dates for all services
+		if (! $error && ! empty($conf->global->CONTRACT_SYNC_PLANNED_DATE_OF_SERVICES))
 		{
-            // Call trigger
-            $result=$this->call_trigger('LINECONTRACT_UPDATE',$user);
-            if ($result < 0) { $error++; $this->db->rollback(); return -1; }
-            // End call triggers
-		}
+			if ($this->date_ouverture_prevue != $this->oldcopy->date_ouverture_prevue)
+			{
+				$sql ='UPDATE '.MAIN_DB_PREFIX.'contratdet SET';
+				$sql.= " date_ouverture_prevue = ".($this->date_ouverture_prevue!=''?"'".$this->db->idate($this->date_ouverture_prevue)."'":"null");
+				$sql.= " WHERE fk_contrat = ".$this->fk_contrat;
+
+				$resql = $this->db->query($sql);
+				if (! $resql)
+				{
+					$error++;
+					$this->error="Error ".$this->db->lasterror();
+				}
+			}
+			if ($this->date_fin_validite != $this->oldcopy->date_fin_validite)
+			{
+				$sql ='UPDATE '.MAIN_DB_PREFIX.'contratdet SET';
+				$sql.= " date_fin_validite = ".($this->date_fin_validite!=''?"'".$this->db->idate($this->date_fin_validite)."'":"null");
+				$sql.= " WHERE fk_contrat = ".$this->fk_contrat;
+
+				$resql = $this->db->query($sql);
+				if (! $resql)
+				{
+					$error++;
+					$this->error="Error ".$this->db->lasterror();
+				}
+			}
 		}
 
-		if (empty($error)) {
-        $this->db->commit();
-		return 1;
+		if (! $error)
+		{
+			if (! $notrigger)
+			{
+	            // Call trigger
+	            $result=$this->call_trigger('LINECONTRACT_UPDATE', $user);
+	            if ($result < 0) { $error++; $this->db->rollback(); }
+	            // End call triggers
+			}
+		}
+
+		if (! $error)
+		{
+        	$this->db->commit();
+			return 1;
 		} else {
 			$this->db->rollback();
 			$this->errors[]=$this->error;
@@ -2999,7 +3010,7 @@ class ContratLigne extends CommonObjectLine
 	 */
 	public function insert($notrigger = 0)
 	{
-		global $user;
+		global $conf, $user;
 
 		// Insertion dans la base
 		$sql = "INSERT INTO ".MAIN_DB_PREFIX."contratdet";
@@ -3038,7 +3049,16 @@ class ContratLigne extends CommonObjectLine
 		{
 			$this->id = $this->db->last_insert_id(MAIN_DB_PREFIX.'contratdet');
 
-			// FIXME Missing insert of extrafields
+			// Insert of extrafields
+			if (empty($conf->global->MAIN_EXTRAFIELDS_DISABLED) && is_array($this->array_options) && count($this->array_options)>0) // For avoid conflicts if trigger used
+			{
+				$result = $this->insertExtraFields();
+				if ($result < 0)
+				{
+					$this->db->rollback();
+					return -1;
+				}
+			}
 
 			if (!$notrigger)
 			{
@@ -3098,7 +3118,7 @@ class ContratLigne extends CommonObjectLine
 		$resql = $this->db->query($sql);
 		if ($resql) {
 			// Call trigger
-			$result = $this->call_trigger('CONTRACT_SERVICE_ACTIVATE', $user);
+			$result = $this->call_trigger('LINECONTRACT_ACTIVATE', $user);
 			if ($result < 0) {
 				$error++;
 				$this->db->rollback();
@@ -3118,12 +3138,13 @@ class ContratLigne extends CommonObjectLine
 	/**
 	 *  Close a contract line
 	 *
-	 * @param    User $user Objet User who close contract
-	 * @param  int $date_end Date end
-	 * @param    string $comment A comment typed by user
-	 * @return int                    <0 if KO, >0 if OK
+	 * @param    User 	$user 			Objet User who close contract
+	 * @param  	 int 	$date_end 		Date end
+	 * @param    string $comment 		A comment typed by user
+     * @param    int	$notrigger		1=Does not execute triggers, 0=Execute triggers
+	 * @return int                    	<0 if KO, >0 if OK
 	 */
-	function close_line($user, $date_end, $comment = '')
+	function close_line($user, $date_end, $comment = '', $notrigger=0)
 	{
 		global $langs, $conf;
 
@@ -3145,15 +3166,19 @@ class ContratLigne extends CommonObjectLine
 		$sql .= " WHERE rowid = " . $this->id . " AND statut = 4";
 
 		$resql = $this->db->query($sql);
-		if ($resql) {
-			// Call trigger
-			$result = $this->call_trigger('CONTRACT_SERVICE_CLOSE', $user);
-			if ($result < 0) {
-				$error++;
-				$this->db->rollback();
-				return -1;
+		if ($resql)
+		{
+			if (! $notrigger)
+			{
+				// Call trigger
+				$result = $this->call_trigger('LINECONTRACT_CLOSE', $user);
+				if ($result < 0) {
+					$error++;
+					$this->db->rollback();
+					return -1;
+				}
+				// End call triggers
 			}
-			// End call triggers
 
 			$this->db->commit();
 			return 1;
