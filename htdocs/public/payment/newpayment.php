@@ -41,17 +41,12 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/payments.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/product/class/product.class.php';
+require_once DOL_DOCUMENT_ROOT.'/societe/class/societeaccount.class.php';
 
 // Security check
 // No check on module enabled. Done later according to $validpaymentmethod
 
-$langs->load("main");
-$langs->load("other");
-$langs->load("dict");
-$langs->load("bills");
-$langs->load("companies");
-$langs->load("errors");
-$langs->load("paybox");     // File with generic data
+$langs->loadLangs(array("main","other","dict","bills","companies","errors","paybox","paypal"));     // File with generic data
 
 $action=GETPOST('action','aZ09');
 
@@ -162,8 +157,6 @@ $urlko=preg_replace('/&$/','',$urlko);  // Remove last &
 
 if (! empty($conf->paypal->enabled))
 {
-	$langs->load("paypal");
-
 	require_once DOL_DOCUMENT_ROOT.'/paypal/lib/paypal.lib.php';
 	require_once DOL_DOCUMENT_ROOT.'/paypal/lib/paypalfunctions.lib.php';
 
@@ -264,6 +257,7 @@ else if (! empty($conf->global->$paramcreditor)) $creditor=$conf->global->$param
  * Actions
  */
 
+// Action dopayment is called after choosing the payment mode
 if ($action == 'dopayment')
 {
 	if ($paymentmethod == 'paypal')
@@ -272,22 +266,31 @@ if ($action == 'dopayment')
 		$PAYPAL_PAYMENT_TYPE='Sale';
 
 		$origfulltag=GETPOST("fulltag",'alpha');
-		$shipToName=GETPOST("shipToName");
-		$shipToStreet=GETPOST("shipToStreet");
-		$shipToCity=GETPOST("shipToCity");
-		$shipToState=GETPOST("shipToState");
-		$shipToCountryCode=GETPOST("shipToCountryCode");
-		$shipToZip=GETPOST("shipToZip");
-		$shipToStreet2=GETPOST("shipToStreet2");
-		$phoneNum=GETPOST("phoneNum");
-		$email=GETPOST("email");
+		$shipToName=GETPOST("shipToName",'alpha');
+		$shipToStreet=GETPOST("shipToStreet",'alpha');
+		$shipToCity=GETPOST("shipToCity",'alpha');
+		$shipToState=GETPOST("shipToState",'alpha');
+		$shipToCountryCode=GETPOST("shipToCountryCode",'alpha');
+		$shipToZip=GETPOST("shipToZip",'alpha');
+		$shipToStreet2=GETPOST("shipToStreet2",'alpha');
+		$phoneNum=GETPOST("phoneNum",'alpha');
+		$email=GETPOST("email",'alpha');
 		$desc=GETPOST("desc",'alpha');
+		$thirdparty_id=GETPOST('thirdparty_id', 'int');
 
 		$mesg='';
-		if (empty($PAYPAL_API_PRICE) || ! is_numeric($PAYPAL_API_PRICE))   $mesg=$langs->trans("ErrorFieldRequired",$langs->transnoentitiesnoconv("Amount"));
+		if (empty($PAYPAL_API_PRICE) || ! is_numeric($PAYPAL_API_PRICE))
+		{
+			$mesg=$langs->trans("ErrorFieldRequired",$langs->transnoentitiesnoconv("Amount"));
+			$action='';
+		}
 		//elseif (empty($EMAIL))          $mesg=$langs->trans("ErrorFieldRequired",$langs->transnoentitiesnoconv("YourEMail"));
 		//elseif (! isValidEMail($EMAIL)) $mesg=$langs->trans("ErrorBadEMail",$EMAIL);
-		elseif (! $origfulltag)        $mesg=$langs->trans("ErrorFieldRequired",$langs->transnoentitiesnoconv("PaymentCode"));
+		elseif (! $origfulltag)
+		{
+			$mesg=$langs->trans("ErrorFieldRequired",$langs->transnoentitiesnoconv("PaymentCode"));
+			$action='';
+		}
 
 		//var_dump($_POST);
 		if (empty($mesg))
@@ -310,6 +313,7 @@ if ($action == 'dopayment')
 			dol_syslog("PAYPAL_API_KO: $PAYPAL_API_KO", LOG_DEBUG);
 			dol_syslog("PAYPAL_API_PRICE: $PAYPAL_API_PRICE", LOG_DEBUG);
 			dol_syslog("PAYPAL_API_DEVISE: $PAYPAL_API_DEVISE", LOG_DEBUG);
+			// All those fields may be empty when making a payment for a free amount for example
 			dol_syslog("shipToName: $shipToName", LOG_DEBUG);
 			dol_syslog("shipToStreet: $shipToStreet", LOG_DEBUG);
 			dol_syslog("shipToCity: $shipToCity", LOG_DEBUG);
@@ -327,16 +331,18 @@ if ($action == 'dopayment')
 			//$_SESSION["FinalPaymentAmt"]=$PAYPAL_API_PRICE;
 
 			// A redirect is added if API call successfull
-			print_paypal_redirect($PAYPAL_API_PRICE,$PAYPAL_API_DEVISE,$PAYPAL_PAYMENT_TYPE,$PAYPAL_API_OK,$PAYPAL_API_KO, $FULLTAG);
+			$mesg = print_paypal_redirect($PAYPAL_API_PRICE,$PAYPAL_API_DEVISE,$PAYPAL_PAYMENT_TYPE,$PAYPAL_API_OK,$PAYPAL_API_KO, $FULLTAG);
 
-			exit;
+			// If we are here, it means the Paypal redirect was not done, so we show error message
+			$action = '';
 		}
 	}
 
 	if ($paymentmethod == 'paybox')
 	{
 		$PRICE=price2num(GETPOST("newamount"),'MT');
-		$email=GETPOST("email");
+		$email=GETPOST("email",'alpha');
+		$thirdparty_id=GETPOST('thirdparty_id', 'int');
 
 		$origfulltag=GETPOST("fulltag",'alpha');
 
@@ -377,47 +383,125 @@ if ($action == 'dopayment')
 
 
 // Called when choosing Stripe mode, after the 'dopayment'
-if ($action == 'charge')
+if ($action == 'charge' && ! empty($conf->stripe->enabled))
 {
+	$amountstripe = $amount;
+
 	// Correct the amount according to unit of currency
 	// See https://support.stripe.com/questions/which-zero-decimal-currencies-does-stripe-support
 	$arrayzerounitcurrency=array('BIF', 'CLP', 'DJF', 'GNF', 'JPY', 'KMF', 'KRW', 'MGA', 'PYG', 'RWF', 'VND', 'VUV', 'XAF', 'XOF', 'XPF');
-	if (! in_array($currency, $arrayzerounitcurrency)) $amount=$amount * 100;
+	if (! in_array($currency, $arrayzerounitcurrency)) $amountstripe=$amountstripe * 100;
 
 	dol_syslog("POST keys  : ".join(',', array_keys($_POST)), LOG_DEBUG, 0, '_stripe');
 	dol_syslog("POST values: ".join(',', $_POST), LOG_DEBUG, 0, '_stripe');
 
 	$stripeToken = GETPOST("stripeToken",'alpha');
-	$email = GETPOST("stripeEmail",'alpha');
+	$email = GETPOST("email",'alpha');
+	$thirdparty_id=GETPOST('thirdparty_id', 'int');		// Note that for payment following online registration for members, this is empty because thirdparty is created once payment is confirmed by paymentok.php
 	$vatnumber = GETPOST('vatnumber','alpha');
 
 	dol_syslog("stripeToken = ".$stripeToken, LOG_DEBUG, 0, '_stripe');
 	dol_syslog("email = ".$email, LOG_DEBUG, 0, '_stripe');
+	dol_syslog("thirdparty_id = ".$thirdparty_id, LOG_DEBUG, 0, '_stripe');
 	dol_syslog("vatnumber = ".$vatnumber, LOG_DEBUG, 0, '_stripe');
 
 	$error = 0;
 
 	try {
-		dol_syslog("Create customer card profile", LOG_DEBUG, 0, '_stripe');
-		$customer = \Stripe\Customer::create(array(
-		'email' => $email,
-		'description' => ($email?'Customer card profile for '.$email:null),
-		'metadata' => array('ipaddress'=>$_SERVER['REMOTE_ADDR']),
-		'business_vat_id' => ($vatnumber?$vatnumber:null),
-		'source'  => $stripeToken           // source can be a token OR array('object'=>'card', 'exp_month'=>xx, 'exp_year'=>xxxx, 'number'=>xxxxxxx, 'cvc'=>xxx, 'name'=>'Cardholder's full name', zip ?)
-		));
-		// Return $customer = array('id'=>'cus_XXXX', ...)
+		$metadata = array(
+			'dol_version'=>DOL_VERSION,
+			'dol_entity'=>$conf->entity,
+			'ipaddress'=>(empty($_SERVER['REMOTE_ADDR'])?'':$_SERVER['REMOTE_ADDR'])
+		);
+		if (! empty($dol_id))        $metadata["dol_id"] = $dol_id;
+		if (! empty($dol_type))      $metadata["dol_type"] = $dol_type;
+		if (! empty($thirdparty_id)) $metadata["dol_thirdparty_id"] = $thirdparty_id;
 
-		dol_syslog("Create charge", LOG_DEBUG, 0, '_stripe');
-		$charge = \Stripe\Charge::create(array(
-		'customer' => $customer->id,
-		'amount'   => price2num($amount, 'MU'),
-		'currency' => $currency,
-		'description' => 'Stripe payment: '.$FULLTAG,
-		'metadata' => array("FULLTAG" => $FULLTAG, 'Recipient' => $mysoc->name),
-		'statement_descriptor' => dol_trunc(dol_trunc(dol_string_unaccent($mysoc->name), 6, 'right', 'UTF-8', 1).' '.$FULLTAG, 22, 'right', 'UTF-8', 1)     // 22 chars that appears on bank receipt
-		));
-		// Return $charge = array('id'=>'ch_XXXX', 'status'=>'succeeded|pending|failed', 'failure_code'=>, 'failure_message'=>...)
+		if ($thirdparty_id > 0)
+		{
+			dol_syslog("Search existing Stripe customer profile for thirdparty_id=".$thirdparty_id, LOG_DEBUG, 0, '_stripe');
+
+			$service = 'StripeTest';
+			$servicestatus = 0;
+			if (! empty($conf->global->STRIPE_LIVE) && ! GETPOST('forcesandbox','alpha'))
+			{
+				$service = 'StripeLive';
+				$servicestatus = 1;
+			}
+			$stripeacc = null;	// No Oauth/connect use for public pages
+
+			$thirdparty = new Societe($db);
+			$thirdparty->fetch($thirdparty_id);
+
+			include_once DOL_DOCUMENT_ROOT.'/stripe/class/stripe.class.php';
+			$stripe = new Stripe($db);
+			$customer = $stripe->customerStripe($thirdparty, $stripeacc, $servicestatus, 1);
+
+			$card = $customer->sources->create(array("source" => $stripeToken, "metadata" => $metadata));
+
+			if (empty($card))
+			{
+				$error++;
+				dol_syslog('Failed to create card record', LOG_WARNING, 0, '_stripe');
+				setEventMessages('Failed to create card record', null, 'errors');
+				$action='';
+			}
+			else
+			{
+				dol_syslog("Create charge on card ".$card->id, LOG_DEBUG, 0, '_stripe');
+				$charge = \Stripe\Charge::create(array(
+					'amount'   => price2num($amountstripe, 'MU'),
+					'currency' => $currency,
+					'capture'  => true,							// Charge immediatly
+					'description' => 'Stripe payment: '.$FULLTAG,
+					'metadata' => array("FULLTAG" => $FULLTAG, 'Recipient' => $mysoc->name, 'dol_version'=>DOL_VERSION, 'dol_entity'=>$conf->entity, 'ipaddress'=>(empty($_SERVER['REMOTE_ADDR'])?'':$_SERVER['REMOTE_ADDR'])),
+					'customer' => $customer->id,
+					'source' => $card,
+					'statement_descriptor' => dol_trunc(dol_trunc(dol_string_unaccent($mysoc->name), 6, 'right', 'UTF-8', 1).' '.$FULLTAG, 22, 'right', 'UTF-8', 1)     // 22 chars that appears on bank receipt
+				));
+				// Return $charge = array('id'=>'ch_XXXX', 'status'=>'succeeded|pending|failed', 'failure_code'=>, 'failure_message'=>...)
+				if (empty($charge))
+				{
+					$error++;
+					dol_syslog('Failed to charge card', LOG_WARNING, 0, '_stripe');
+					setEventMessages('Failed to charge card', null, 'errors');
+					$action='';
+				}
+			}
+		}
+		else
+		{
+			dol_syslog("Create anonymous customer card profile", LOG_DEBUG, 0, '_stripe');
+			$customer = \Stripe\Customer::create(array(
+				'email' => $email,
+				'description' => ($email?'Anonymous customer for '.$email:'Anonymous customer'),
+				'metadata' => $metadata,
+				'business_vat_id' => ($vatnumber?$vatnumber:null),
+				'source'  => $stripeToken           // source can be a token OR array('object'=>'card', 'exp_month'=>xx, 'exp_year'=>xxxx, 'number'=>xxxxxxx, 'cvc'=>xxx, 'name'=>'Cardholder's full name', zip ?)
+			));
+			// Return $customer = array('id'=>'cus_XXXX', ...)
+
+			// The customer was just created with a source, so we can make a charge
+			// with no card defined, the source just used for customer creation will be used.
+			dol_syslog("Create charge", LOG_DEBUG, 0, '_stripe');
+			$charge = \Stripe\Charge::create(array(
+				'customer' => $customer->id,
+				'amount'   => price2num($amountstripe, 'MU'),
+				'currency' => $currency,
+				'capture'  => true,							// Charge immediatly
+				'description' => 'Stripe payment: '.$FULLTAG,
+				'metadata' => array("FULLTAG" => $FULLTAG, 'Recipient' => $mysoc->name, 'dol_version'=>DOL_VERSION, 'dol_entity'=>$conf->entity, 'ipaddress'=>(empty($_SERVER['REMOTE_ADDR'])?'':$_SERVER['REMOTE_ADDR'])),
+				'statement_descriptor' => dol_trunc(dol_trunc(dol_string_unaccent($mysoc->name), 6, 'right', 'UTF-8', 1).' '.$FULLTAG, 22, 'right', 'UTF-8', 1)     // 22 chars that appears on bank receipt
+			));
+			// Return $charge = array('id'=>'ch_XXXX', 'status'=>'succeeded|pending|failed', 'failure_code'=>, 'failure_message'=>...)
+			if (empty($charge))
+			{
+				$error++;
+				dol_syslog('Failed to charge card', LOG_WARNING, 0, '_stripe');
+				setEventMessages('Failed to charge card', null, 'errors');
+				$action='';
+			}
+		}
 	} catch(\Stripe\Error\Card $e) {
 		// Since it's a decline, \Stripe\Error\Card will be caught
 		$body = $e->getJsonBody();
@@ -431,8 +515,8 @@ if ($action == 'charge')
 		print('Message is:' . $err['message'] . "\n");
 
 		$error++;
-		setEventMessages($e->getMessage(), null, 'errors');
 		dol_syslog($e->getMessage(), LOG_WARNING, 0, '_stripe');
+		setEventMessages($e->getMessage(), null, 'errors');
 		$action='';
 	} catch (\Stripe\Error\RateLimit $e) {
 		// Too many requests made to the API too quickly
@@ -781,8 +865,9 @@ if ($source == 'order')
 	{
 		print '<!-- Shipping address not complete, so we don t use it -->'."\n";
 	}
+	if (is_object($order->thirdparty)) print '<input type="hidden" name="thirdparty_id" value="'.$order->thirdparty->id.'">'."\n";
 	print '<input type="hidden" name="email" value="'.$order->thirdparty->email.'">'."\n";
-    print '<input type="hidden" name="vatnumber" value="'.$order->thirdparty->tva_intra.'">'."\n";
+	print '<input type="hidden" name="vatnumber" value="'.$order->thirdparty->tva_intra.'">'."\n";
 	$labeldesc=$langs->trans("Order").' '.$order->ref;
 	if (GETPOST('desc','alpha')) $labeldesc=GETPOST('desc','alpha');
 	print '<input type="hidden" name="desc" value="'.dol_escape_htmltag($labeldesc).'">'."\n";
@@ -850,7 +935,7 @@ if ($source == 'invoice')
 	print '</td></tr>'."\n";
 
 	// Amount
-	print '<tr class="CTableRow'.($var?'1':'2').'"><td class="CTableRow'.($var?'1':'2').'">'.$langs->trans("Amount");
+	print '<tr class="CTableRow'.($var?'1':'2').'"><td class="CTableRow'.($var?'1':'2').'">'.$langs->trans("PaymentAmount");
 	if (empty($amount) && empty($object->paye)) print ' ('.$langs->trans("ToComplete").')';
 	print '</td><td class="CTableRow'.($var?'1':'2').'">';
 	if (empty($object->paye))
@@ -915,8 +1000,9 @@ if ($source == 'invoice')
 	{
 		print '<!-- Shipping address not complete, so we don t use it -->'."\n";
 	}
+	if (is_object($invoice->thirdparty)) print '<input type="hidden" name="thirdparty_id" value="'.$invoice->thirdparty->id.'">'."\n";
 	print '<input type="hidden" name="email" value="'.$invoice->thirdparty->email.'">'."\n";
-    print '<input type="hidden" name="vatnumber" value="'.$invoice->thirdparty->tva_intra.'">'."\n";
+	print '<input type="hidden" name="vatnumber" value="'.$invoice->thirdparty->tva_intra.'">'."\n";
 	$labeldesc=$langs->trans("Invoice").' '.$invoice->ref;
 	if (GETPOST('desc','alpha')) $labeldesc=GETPOST('desc','alpha');
 	print '<input type="hidden" name="desc" value="'.dol_escape_htmltag($labeldesc).'">'."\n";
@@ -1122,8 +1208,9 @@ if ($source == 'contractline')
 	{
 		print '<!-- Shipping address not complete, so we don t use it -->'."\n";
 	}
+	if (is_object($contract->thirdparty)) print '<input type="hidden" name="thirdparty_id" value="'.$contract->thirdparty->id.'">'."\n";
 	print '<input type="hidden" name="email" value="'.$contract->thirdparty->email.'">'."\n";
-    print '<input type="hidden" name="vatnumber" value="'.$contract->thirdparty->tva_intra.'">'."\n";
+	print '<input type="hidden" name="vatnumber" value="'.$contract->thirdparty->tva_intra.'">'."\n";
 	$labeldesc=$langs->trans("Contract").' '.$contract->ref;
 	if (GETPOST('desc','alpha')) $labeldesc=GETPOST('desc','alpha');
 	print '<input type="hidden" name="desc" value="'.dol_escape_htmltag($labeldesc).'">'."\n";
@@ -1147,8 +1234,8 @@ if ($source == 'membersubscription')
 	}
 	else
 	{
+		$member->fetch_thirdparty();
 		$object = $member;
-
 		$subscription=new Subscription($db);
 	}
 
@@ -1285,6 +1372,7 @@ if ($source == 'membersubscription')
 	{
 		print '<!-- Shipping address not complete, so we don t use it -->'."\n";
 	}
+	if (is_object($member->thirdparty)) print '<input type="hidden" name="thirdparty_id" value="'.$member->thirdparty->id.'">'."\n";
 	print '<input type="hidden" name="email" value="'.$member->email.'">'."\n";
 	$labeldesc = $langs->trans("PaymentSubscription");
 	if (GETPOST('desc','alpha')) $labeldesc=GETPOST('desc','alpha');
@@ -1371,7 +1459,7 @@ if (preg_match('/^dopayment/',$action))
 		/*
 		print '<script src="https://checkout.stripe.com/checkout.js"
 		class="stripe-button"
-		data-key="'.$stripe['publishable_key'].'"
+		data-key="'.$stripearrayofkeys['publishable_key'].'"
 		data-amount="'.$ttc.'"
 		data-currency="'.$conf->currency.'"
 		data-description="'.$ref.'">
@@ -1425,6 +1513,8 @@ if (preg_match('/^dopayment/',$action))
 		print '<input type="hidden" name="amount" value="'.$amount.'">'."\n";
 		print '<input type="hidden" name="currency" value="'.$currency.'">'."\n";
 		print '<input type="hidden" name="forcesandbox" value="'.GETPOST('forcesandbox','alpha').'" />';
+		print '<input type="hidden" name="email" value="'.GETPOST('email','alpha').'" />';
+		print '<input type="hidden" name="thirdparty_id" value="'.GETPOST('thirdparty_id','int').'" />';
 
 		print '
 	    <table id="dolpaymenttable" summary="Payment form" class="center">
@@ -1432,7 +1522,7 @@ if (preg_match('/^dopayment/',$action))
 
 	    <div class="form-row left">
 	    <label for="card-element">
-	    Credit or debit card
+	    '.$langs->trans("CreditOrDebitCard").'
 	    </label>
 	    <div id="card-element">
 	    <!-- a Stripe Element will be inserted here. -->
@@ -1442,7 +1532,7 @@ if (preg_match('/^dopayment/',$action))
 	    <div id="card-errors" role="alert"></div>
 	    </div>
 	    <br>
-	    <button class="button" id="buttontopay">'.$langs->trans("ToPay").'</button>
+	    <button class="butAction" id="buttontopay">'.$langs->trans("ValidatePayment").'</button>
 	    <img id="hourglasstopay" class="hidden" src="'.DOL_URL_ROOT.'/theme/'.$conf->theme.'/img/working.gif'.'">
 	    </td></tr></tbody></table>
 
@@ -1456,7 +1546,7 @@ if (preg_match('/^dopayment/',$action))
 		?>
 
 	    // Create a Stripe client
-	    var stripe = Stripe('<?php echo $stripe['publishable_key']; ?>');
+	    var stripe = Stripe('<?php echo $stripearrayofkeys['publishable_key']; // Defined into config.php ?>');
 
 	    // Create an instance of Elements
 	    var elements = stripe.elements();
@@ -1541,3 +1631,4 @@ htmlPrintOnlinePaymentFooter($mysoc,$langs,1,$suffix,$object);
 llxFooter('', 'public');
 
 $db->close();
+

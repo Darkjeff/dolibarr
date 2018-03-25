@@ -218,7 +218,7 @@ if ($date_endyear) $param.='&date_endyear='.$date_startyear;
 
 print '<table class="noborder" width="100%">';
 print '<tr class="liste_titre">';
-print_liste_field_titre("PredefinedGroups", $_SERVER["PHP_SELF"], 's.nom, s.rowid','',$param,'',$sortfield,$sortorder,'width200 ');
+print_liste_field_titre("PredefinedGroups", $_SERVER["PHP_SELF"], 'f.thirdparty_code,f.rowid','',$param,'',$sortfield,$sortorder,'width200 ');
 print_liste_field_titre('');
 if ($modecompta == 'BOOKKEEPING')
 {
@@ -255,7 +255,7 @@ if ($modecompta == 'BOOKKEEPING')
 	$sql.= " WHERE f.numero_compte = aa.account_number";
 	//$sql.= " AND fk_statut in (1,2)";
 	$sql.= " AND ".$predefinedgroupwhere;
-	$sql.= " AND aa.fk_pcg_version = '".$charofaccountstring."'";
+	$sql.= " AND f.entity = ".$conf->entity;
 	if (! empty($date_start) && ! empty($date_end))
 		$sql.= " AND f.doc_date >= '".$db->idate($date_start)."' AND f.doc_date <= '".$db->idate($date_end)."'";
 	$sql.= " GROUP BY pcg_type, pcg_subtype, name, socid";
@@ -822,7 +822,7 @@ else
 				$sql.= " FROM ".MAIN_DB_PREFIX."expensereport as p";
 				$sql.= " INNER JOIN ".MAIN_DB_PREFIX."user as u ON u.rowid=p.fk_user_author";
 				$sql.= " INNER JOIN ".MAIN_DB_PREFIX."payment_expensereport as pe ON pe.fk_expensereport = p.rowid";
-				$sql.= " LEFT JOIN ".MAIN_DB_PREFIX."c_paiement as c ON pe.fk_typepayment = c.id AND c.entity IN (".getEntity('c_paiement').")";
+				$sql.= " LEFT JOIN ".MAIN_DB_PREFIX."c_paiement as c ON pe.fk_typepayment = c.id";
 				$sql.= " WHERE p.entity IN (".getEntity('expensereport').")";
 				$sql.= " AND p.fk_statut>=5";
 
@@ -906,7 +906,7 @@ else
 			    $sql = "SELECT p.societe as nom, p.firstname, p.lastname, date_format(p.datedon,'%Y-%m') as dm, sum(p.amount) as amount";
 			    $sql.= " FROM ".MAIN_DB_PREFIX."don as p";
 			    $sql.= " INNER JOIN ".MAIN_DB_PREFIX."payment_donation as pe ON pe.fk_donation = p.rowid";
-			    $sql.= " LEFT JOIN ".MAIN_DB_PREFIX."c_paiement as c ON pe.fk_typepayment = c.id AND c.entity IN (".getEntity('c_paiement').")";
+			    $sql.= " LEFT JOIN ".MAIN_DB_PREFIX."c_paiement as c ON pe.fk_typepayment = c.id";
 			    $sql.= " WHERE p.entity IN (".getEntity('donation').")";
 			    $sql.= " AND fk_statut >= 2";
 			}

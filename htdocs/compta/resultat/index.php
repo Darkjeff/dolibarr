@@ -698,7 +698,7 @@ if (! empty($conf->expensereport->enabled) && ($modecompta == 'CREANCES-DETTES' 
 		$sql.= " FROM ".MAIN_DB_PREFIX."expensereport as p";
 		$sql.= " INNER JOIN ".MAIN_DB_PREFIX."user as u ON u.rowid=p.fk_user_author";
 		$sql.= " INNER JOIN ".MAIN_DB_PREFIX."payment_expensereport as pe ON pe.fk_expensereport = p.rowid";
-		$sql.= " LEFT JOIN ".MAIN_DB_PREFIX."c_paiement as c ON pe.fk_typepayment = c.id AND c.entity IN (".getEntity('c_paiement').")";
+		$sql.= " LEFT JOIN ".MAIN_DB_PREFIX."c_paiement as c ON pe.fk_typepayment = c.id";
 		$sql.= " WHERE p.entity IN (".getEntity('expensereport').")";
 		$sql.= " AND p.fk_statut>=5";
 
@@ -761,7 +761,7 @@ if (! empty($conf->don->enabled) && ($modecompta == 'CREANCES-DETTES' || $modeco
         $sql = "SELECT p.societe as nom, p.firstname, p.lastname, date_format(pe.datep,'%Y-%m') as dm, sum(p.amount) as amount";
         $sql.= " FROM ".MAIN_DB_PREFIX."don as p";
 		$sql.= " INNER JOIN ".MAIN_DB_PREFIX."payment_donation as pe ON pe.fk_donation = p.rowid";
-		$sql.= " LEFT JOIN ".MAIN_DB_PREFIX."c_paiement as c ON pe.fk_typepayment = c.id AND c.entity IN (".getEntity('c_paiement').")";
+		$sql.= " LEFT JOIN ".MAIN_DB_PREFIX."c_paiement as c ON pe.fk_typepayment = c.id";
 		$sql.= " WHERE p.entity IN (".getEntity('donation').")";
    	    $sql.= " AND fk_statut >= 2";
 		if (! empty($date_start) && ! empty($date_end))
@@ -828,7 +828,6 @@ if (! empty($conf->accounting->enabled) && ($modecompta == 'BOOKKEEPING'))
 	if (! empty($date_start) && ! empty($date_end))
 		$sql.= " AND b.doc_date >= '".$db->idate($date_start)."' AND b.doc_date <= '".$db->idate($date_end)."'";
 	$sql.= " GROUP BY b.doc_ref, b.numero_compte, b.subledger_account, b.subledger_label, pcg_type, dm";
-
 	//print $sql;
 
 	dol_syslog("get bookkeeping record");

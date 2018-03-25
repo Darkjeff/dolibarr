@@ -96,7 +96,7 @@ $day_lim	= GETPOST('day_lim','int');
 $month_lim	= GETPOST('month_lim','int');
 $year_lim	= GETPOST('year_lim','int');
 
-$option = GETPOST('option');
+$option = GETPOST('search_option');
 if ($option == 'late') {
 	$search_status = '1';
 }
@@ -276,7 +276,7 @@ if ($massaction == 'withdrawrequest')
 					$error++;
 					setEventMessages($objecttmp->ref.' '.$langs->trans("AmountMustBePositive"), $objecttmp->errors, 'errors');
 				}
-				if(!($objecttmp->statut > Facture::STATUS_DRAFT)){
+				if (!($objecttmp->statut > Facture::STATUS_DRAFT)){
 					$error++;
 					setEventMessages($objecttmp->ref.' '.$langs->trans("Draft"), $objecttmp->errors, 'errors');
 				}
@@ -298,11 +298,11 @@ if ($massaction == 'withdrawrequest')
 					$numprlv = $db->num_rows($result_sql);
 				}
 
-				if($numprlv>0){
+				if ($numprlv>0){
 					$error++;
 					setEventMessages($objecttmp->ref.' '.$langs->trans("RequestAlreadyDone"), $objecttmp->errors, 'errors');
 				}
-				if(!empty($objecttmp->mode_reglement_id ) && $objecttmp->mode_reglement_id != 3){
+				if (!empty($objecttmp->mode_reglement_code ) && $objecttmp->mode_reglement_code != 'PRE'){
 					$error++;
 					setEventMessages($objecttmp->ref.' '.$langs->trans("BadPaymentMethod"), $objecttmp->errors, 'errors');
 				}
@@ -560,7 +560,7 @@ if ($resql)
 	if ($search_status != '') $param.='&search_status='.urlencode($search_status);
 	if ($search_paymentmode > 0) $param.='search_paymentmode='.urlencode($search_paymentmode);
 	if ($show_files)         $param.='&show_files=' .$show_files;
-	if ($option)             $param.="&option=".$option;
+	if ($option)             $param.="&search_option=".$option;
 	if ($optioncss != '')    $param.='&optioncss='.$optioncss;
 	// Add $param from extra fields
 	include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_list_search_param.tpl.php';
@@ -701,20 +701,20 @@ if ($resql)
 	// Date invoice
 	if (! empty($arrayfields['f.date']['checked']))
 	{
-		print '<td class="liste_titre" align="center">';
-		if (! empty($conf->global->MAIN_LIST_FILTER_ON_DAY)) print '<input class="flat" type="text" size="1" maxlength="2" name="day" value="'.dol_escape_htmltag($day).'">';
-		print '<input class="flat" type="text" size="1" maxlength="2" name="month" value="'.dol_escape_htmltag($month).'">';
-		$formother->select_year($year?$year:-1,'year',1, 20, 5);
+		print '<td class="liste_titre nowraponall" align="center">';
+		if (! empty($conf->global->MAIN_LIST_FILTER_ON_DAY)) print '<input class="flat valignmiddle" type="text" size="1" maxlength="2" name="day" value="'.dol_escape_htmltag($day).'">';
+		print '<input class="flat valignmiddle" type="text" size="1" maxlength="2" name="month" value="'.dol_escape_htmltag($month).'">';
+		$formother->select_year($year?$year:-1,'year',1, 20, 5, 0, 0, '', 'widthauto valignmiddle');
 		print '</td>';
 	}
 	// Date due
 	if (! empty($arrayfields['f.date_lim_reglement']['checked']))
 	{
-		print '<td class="liste_titre" align="center">';
-		if (! empty($conf->global->MAIN_LIST_FILTER_ON_DAY)) print '<input class="flat" type="text" size="1" maxlength="2" name="day_lim" value="'.dol_escape_htmltag($day_lim).'">';
-		print '<input class="flat" type="text" size="1" maxlength="2" name="month_lim" value="'.dol_escape_htmltag($month_lim).'">';
-		$formother->select_year($year_lim?$year_lim:-1,'year_lim',1, 20, 5);
-		print '<br><input type="checkbox" name="option" value="late"'.($option == 'late'?' checked':'').'> '.$langs->trans("Late");
+		print '<td class="liste_titre nowraponall" align="center">';
+		if (! empty($conf->global->MAIN_LIST_FILTER_ON_DAY)) print '<input class="flat valignmiddle" type="text" size="1" maxlength="2" name="day_lim" value="'.dol_escape_htmltag($day_lim).'">';
+		print '<input class="flat valignmiddle" type="text" size="1" maxlength="2" name="month_lim" value="'.dol_escape_htmltag($month_lim).'">';
+		$formother->select_year($year_lim?$year_lim:-1,'year_lim',1, 20, 5, 0, 0, '', 'widthauto valignmiddle');
+		print '<br><input type="checkbox" name="search_option" value="late"'.($option == 'late'?' checked':'').'> '.$langs->trans("Late");
 		print '</td>';
 	}
 	// Project
@@ -756,7 +756,7 @@ if ($resql)
 	if (! empty($arrayfields['f.fk_mode_reglement']['checked']))
 	{
 		print '<td class="liste_titre" align="left">';
-		$form->select_types_paiements($search_paymentmode, 'search_paymentmode', '', 0, 0, 1, 10);
+		$form->select_types_paiements($search_paymentmode, 'search_paymentmode', '', 0, 1, 1, 10);
 		print '</td>';
 	}
 	if (! empty($arrayfields['f.total_ht']['checked']))
@@ -775,14 +775,14 @@ if ($resql)
 	}
 	if (! empty($arrayfields['f.total_localtax1']['checked']))
 	{
-		// Amount
+		// Localtax1
 		print '<td class="liste_titre" align="right">';
 		print '<input class="flat" type="text" size="5" name="search_montant_localtax1" value="'.$search_montant_localtax1.'">';
 		print '</td>';
 	}
 	if (! empty($arrayfields['f.total_localtax2']['checked']))
 	{
-		// Amount
+		// Localtax2
 		print '<td class="liste_titre" align="right">';
 		print '<input class="flat" type="text" size="5" name="search_montant_localtax2" value="'.$search_montant_localtax2.'">';
 		print '</td>';
@@ -862,7 +862,7 @@ if ($resql)
 	// Extra fields
 	include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_list_search_title.tpl.php';
 	// Hook fields
-	$parameters=array('arrayfields'=>$arrayfields);
+	$parameters=array('arrayfields'=>$arrayfields,'param'=>$param,'sortfield'=>$sortfield,'sortorder'=>$sortorder);
 	$reshook=$hookmanager->executeHooks('printFieldListTitle',$parameters);    // Note that $action and $object may have been modified by hook
 	print $hookmanager->resPrint;
 	if (! empty($arrayfields['f.datec']['checked']))     print_liste_field_titre($arrayfields['f.datec']['label'],$_SERVER["PHP_SELF"],"f.datec","",$param,'align="center" class="nowrap"',$sortfield,$sortorder);

@@ -654,7 +654,7 @@ else
 			// Extra fields
 			include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_list_search_title.tpl.php';
 			// Hook fields
-			$parameters=array('arrayfields'=>$arrayfields);
+			$parameters=array('arrayfields'=>$arrayfields,'param'=>$param,'sortfield'=>$sortfield,'sortorder'=>$sortorder);
 			$reshook=$hookmanager->executeHooks('printFieldListTitle',$parameters);    // Note that $action and $object may have been modified by hook
 			print $hookmanager->resPrint;
 			if (! empty($arrayfields['p.datec']['checked']))  print_liste_field_titre($arrayfields['p.datec']['label'],$_SERVER["PHP_SELF"],"p.datec","",$param,'align="center" class="nowrap"',$sortfield,$sortorder);
@@ -698,6 +698,7 @@ else
 				$product_static->type = $obj->fk_product_type;
 				$product_static->status_buy = $obj->tobuy;
 				$product_static->status     = $obj->tosell;
+				$product_static->status_batch = $obj->tobatch;
 				$product_static->entity = $obj->entity;
 				$product_static->pmp = $obj->pmp;
 
@@ -793,7 +794,7 @@ else
 								if (! empty($conf->fournisseur->enabled) && $user->rights->fournisseur->lire)
 								{
 									$htmltext=$product_fourn->display_price_product_fournisseur(1, 1, 0, 1);
-									print $form->textwithpicto(price($product_fourn->fourn_unitprice * (1 - $product_fourn->fourn_remise_percent/100) + $product_fourn->fourn_unitcharges - $product_fourn->fourn_remise).' '.$langs->trans("HT"),$htmltext);
+									print $form->textwithpicto(price($product_fourn->fourn_unitprice * (1 - $product_fourn->fourn_remise_percent/100) - $product_fourn->fourn_remise).' '.$langs->trans("HT"),$htmltext);
 								}
 								else print price($product_fourn->fourn_unitprice).' '.$langs->trans("HT");
 							}

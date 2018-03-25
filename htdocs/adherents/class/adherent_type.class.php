@@ -35,6 +35,7 @@ class AdherentType extends CommonObject
 	public $table_element = 'adherent_type';
 	public $element = 'adherent_type';
 	public $picto = 'group';
+	public $ismultientitymanaged = 1;  // 0=No test on entity, 1=Test with field entity, 2=Test with link by societe
 
 	/**
 	 * @var string
@@ -44,12 +45,6 @@ class AdherentType extends CommonObject
 	public $libelle;
 	/** @var string Label */
 	public $label;
-	/**
-	 * @var bool
-	 * @deprecated Use subscription
-	 * @see subscription
-	 */
-	public $cotisation;
 	/**
 	 * @var int Subsription required (0 or 1)
 	 * @since 5.0
@@ -264,7 +259,7 @@ class AdherentType extends CommonObject
 	{
 		$sql = "SELECT d.rowid, d.libelle as label, d.statut, d.subscription, d.mail_valid, d.note, d.vote";
 		$sql .= " FROM ".MAIN_DB_PREFIX."adherent_type as d";
-		$sql .= " WHERE d.rowid = ".$rowid;
+		$sql .= " WHERE d.rowid = ".(int) $rowid;
 
 		dol_syslog("Adherent_type::fetch", LOG_DEBUG);
 
@@ -307,7 +302,7 @@ class AdherentType extends CommonObject
 
 		$sql = "SELECT rowid, libelle as label";
 		$sql.= " FROM ".MAIN_DB_PREFIX."adherent_type";
-		$sql.= " WHERE entity IN (".getEntity('adherent').")";
+		$sql.= " WHERE entity IN (".getEntity('member_type').")";
 
 		$resql=$this->db->query($sql);
 		if ($resql)
@@ -504,7 +499,7 @@ class AdherentType extends CommonObject
 	/**
 	 *     getMailOnValid
 	 *
-	 *     @return string     Return mail model
+	 *     @return string     Return mail content of type or empty
 	 */
 	function getMailOnValid()
 	{
@@ -514,16 +509,14 @@ class AdherentType extends CommonObject
 		{
 			return $this->mail_valid;
 		}
-		else
-		{
-			return $conf->global->ADHERENT_MAIL_VALID;
-		}
+
+		return '';
 	}
 
 	/**
 	 *     getMailOnSubscription
 	 *
-	 *     @return string     Return mail model
+	 *     @return string     Return mail content of type or empty
 	 */
 	function getMailOnSubscription()
 	{
@@ -534,16 +527,14 @@ class AdherentType extends CommonObject
 		{
 			return $this->mail_subscription;
 		}
-		else
-		{
-			return $conf->global->ADHERENT_MAIL_COTIS;
-		}
+
+		return '';
 	}
 
 	/**
 	 *     getMailOnResiliate
 	 *
-	 *     @return string     Return mail model
+	 *     @return string     Return mail model content of type or empty
 	 */
 	function getMailOnResiliate()
 	{
@@ -554,10 +545,8 @@ class AdherentType extends CommonObject
 		{
 			return $this->mail_resiliate;
 		}
-		else
-		{
-			return $conf->global->ADHERENT_MAIL_RESIL;
-		}
+
+		return '';
 	}
 
 }

@@ -262,9 +262,10 @@ class Contrat extends CommonObject
 	 *  @param	User		$user      		Object User making action
 	 *  @param	int|string	$date_start		Date start (now if empty)
      *  @param	int			$notrigger		1=Does not execute triggers, 0=Execute triggers
+     *  @param	string		$comment		Comment
 	 *	@return	int							<0 if KO, >0 if OK
 	 */
-	function activateAll($user, $date_start='', $notrigger=0)
+	function activateAll($user, $date_start='', $notrigger=0, $comment='')
 	{
 		if (empty($date_start)) $date_start = dol_now();
 
@@ -282,7 +283,7 @@ class Contrat extends CommonObject
 			{
 				$contratline->context = $this->context;
 
-				$result = $contratline->active_line($user, $date_start, -1);
+				$result = $contratline->active_line($user, $date_start, -1, $comment);
 				if ($result < 0)
 				{
 					$error++;
@@ -898,17 +899,20 @@ class Contrat extends CommonObject
 			if ($result > 0)
 			{
 				$modCodeContract = new $module();
-			}
 
-			if (!empty($modCodeContract->code_auto)) {
-				// Mise a jour ref
-				$sql = 'UPDATE '.MAIN_DB_PREFIX."contrat SET ref='(PROV".$this->id.")' WHERE rowid=".$this->id;
-				if ($this->db->query($sql))
-				{
-					if ($this->id)
+				if (!empty($modCodeContract->code_auto)) {
+					// Mise a jour ref
+					$sql = 'UPDATE '.MAIN_DB_PREFIX."contrat SET ref='(PROV".$this->id.")' WHERE rowid=".$this->id;
+					if ($this->db->query($sql))
 					{
-						$this->ref="(PROV".$this->id.")";
+						if ($this->id)
+						{
+							$this->ref="(PROV".$this->id.")";
+						}
 					}
+				} else {
+					$error++;
+					$this->error='Failed to get PROV number';
 				}
 			}
 
@@ -1335,13 +1339,14 @@ class Contrat extends CommonObject
 	function addline($desc, $pu_ht, $qty, $txtva, $txlocaltax1, $txlocaltax2, $fk_product, $remise_percent, $date_start, $date_end, $price_base_type='HT', $pu_ttc=0.0, $info_bits=0, $fk_fournprice=null, $pa_ht = 0,$array_options=0, $fk_unit = null, $rang=0)
 	{
 		global $user, $langs, $conf, $mysoc;
+		$error=0;
 
 		dol_syslog(get_class($this)."::addline $desc, $pu_ht, $qty, $txtva, $txlocaltax1, $txlocaltax2, $fk_product, $remise_percent, $date_start, $date_end, $price_base_type, $pu_ttc, $info_bits, $rang");
 
 		// Check parameters
 		if ($fk_product <= 0 && empty($desc))
 		{
-			$this->error="DescRequiredForFreeProductLines";
+			$this->error="ErrorDescRequiredForFreeProductLines";
 			return -1;
 		}
 
@@ -1468,48 +1473,38 @@ class Contrat extends CommonObject
 			{
 				$contractlineid = $this->db->last_insert_id(MAIN_DB_PREFIX."contratdet");
 
-				$result=$this->update_statut($user);
-				if ($result > 0)
+				if (empty($conf->global->MAIN_EXTRAFIELDS_DISABLED) && is_array($array_options) && count($array_options)>0) // For avoid conflicts if trigger used
 				{
-
-					if (empty($conf->global->MAIN_EXTRAFIELDS_DISABLED) && is_array($array_options) && count($array_options)>0) // For avoid conflicts if trigger used
+					$contractline = new ContratLigne($this->db);
+					$contractline->array_options=$array_options;
+					$contractline->id=$contractlineid;
+					$result=$contractline->insertExtraFields();
+					if ($result < 0)
 					{
-						$contractline = new ContratLigne($this->db);
-						$contractline->array_options=$array_options;
-						$contractline->id=$contractlineid;
-						$result=$contractline->insertExtraFields();
-						if ($result < 0)
-						{
-							$this->error[]=$contractline->error;
-							$error++;
-						}
-					}
-
-					if (empty($error)) {
-					    // Call trigger
-					    $result=$this->call_trigger('LINECONTRACT_INSERT',$user);
-					    if ($result < 0)
-					    {
-					    	$error++;
-					    }
-					    // End call triggers
-					}
-
-					if ($error)
-					{
-						$this->db->rollback();
-						return -1;
-					}
-					else
-					{
-						$this->db->commit();
-						return $contractlineid;
+						$this->error[]=$contractline->error;
+						$error++;
 					}
 				}
-				else
+
+				if (empty($error)) {
+				    // Call trigger
+				    $result=$this->call_trigger('LINECONTRACT_INSERT',$user);
+				    if ($result < 0)
+				    {
+				    	$error++;
+				    }
+				    // End call triggers
+				}
+
+				if ($error)
 				{
 					$this->db->rollback();
 					return -1;
+				}
+				else
+				{
+					$this->db->commit();
+					return $contractlineid;
 				}
 			}
 			else
@@ -1552,6 +1547,8 @@ class Contrat extends CommonObject
 	function updateline($rowid, $desc, $pu, $qty, $remise_percent, $date_start, $date_end, $tvatx, $localtax1tx=0.0, $localtax2tx=0.0, $date_debut_reel='', $date_fin_reel='', $price_base_type='HT', $info_bits=0, $fk_fournprice=null, $pa_ht = 0,$array_options=0, $fk_unit = null)
 	{
 		global $user, $conf, $langs, $mysoc;
+
+		$error=0;
 
 		// Clean parameters
 		$qty=trim($qty);
@@ -1844,7 +1841,6 @@ class Contrat extends CommonObject
 		}
 		if ($mode == 4 || $mode == 6 || $mode == 7)
 		{
-			$line=new ContratLigne($this->db);
 			$text='';
 			if ($mode == 4)
 			{
@@ -1855,13 +1851,13 @@ class Contrat extends CommonObject
 				$text.='</span>';
 			}
 			$text.=($mode == 7?'<div class="inline-block">':'');
-			$text.=($mode != 7 || $this->nbofserviceswait > 0) ? ($this->nbofserviceswait.$line->LibStatut(0,3,-1,'class="paddingleft2 inline-block valigntextbottom"')).(($mode != 7 || $this->nbofservicesopened || $this->nbofservicesexpired || $this->nbofservicesclosed)?' &nbsp; ':'') : '';
+			$text.=($mode != 7 || $this->nbofserviceswait > 0) ? ($this->nbofserviceswait.ContratLigne::LibStatut(0,3,-1,'class="paddingleft2 inline-block valigntextbottom"')).(($mode != 7 || $this->nbofservicesopened || $this->nbofservicesexpired || $this->nbofservicesclosed)?' &nbsp; ':'') : '';
 			$text.=($mode == 7?'</div><div class="inline-block">':'');
-			$text.=($mode != 7 || $this->nbofservicesopened > 0) ? ($this->nbofservicesopened.$line->LibStatut(4,3,0,'class="paddingleft2 inline-block valigntextbottom"')).(($mode != 7 || $this->nbofservicesexpired || $this->nbofservicesclosed)?' &nbsp; ':'') : '';
+			$text.=($mode != 7 || $this->nbofservicesopened > 0) ? ($this->nbofservicesopened.ContratLigne::LibStatut(4,3,0,'class="paddingleft2 inline-block valigntextbottom"')).(($mode != 7 || $this->nbofservicesexpired || $this->nbofservicesclosed)?' &nbsp; ':'') : '';
 			$text.=($mode == 7?'</div><div class="inline-block">':'');
-			$text.=($mode != 7 || $this->nbofservicesexpired > 0) ? ($this->nbofservicesexpired.$line->LibStatut(4,3,1,'class="paddingleft2 inline-block valigntextbottom"')).(($mode != 7 || $this->nbofservicesclosed)?' &nbsp; ':'') : '';
+			$text.=($mode != 7 || $this->nbofservicesexpired > 0) ? ($this->nbofservicesexpired.ContratLigne::LibStatut(4,3,1,'class="paddingleft2 inline-block valigntextbottom"')).(($mode != 7 || $this->nbofservicesclosed)?' &nbsp; ':'') : '';
 			$text.=($mode == 7?'</div><div class="inline-block">':'');
-			$text.=($mode != 7 || $this->nbofservicesclosed > 0) ? ($this->nbofservicesclosed.$line->LibStatut(5,3,-1,'class="paddingleft2 inline-block valigntextbottom"')) : '';
+			$text.=($mode != 7 || $this->nbofservicesclosed > 0) ? ($this->nbofservicesclosed.ContratLigne::LibStatut(5,3,-1,'class="paddingleft2 inline-block valigntextbottom"')) : '';
 			$text.=($mode == 7?'</div>':'');
 			return $text;
 		}
@@ -2553,7 +2549,7 @@ class ContratLigne extends CommonObjectLine
 	 *  @param	string	$moreatt	More attribute
 	 *  @return string      		Libelle
 	 */
-	function LibStatut($statut,$mode,$expired=-1,$moreatt='')
+	static function LibStatut($statut,$mode,$expired=-1,$moreatt='')
 	{
 		global $langs;
 		$langs->load("contracts");
@@ -3095,13 +3091,6 @@ class ContratLigne extends CommonObjectLine
 	{
 		global $langs, $conf;
 
-		// Update object
-		$this->date_ouverture = $date;
-		$this->date_fin_validite = $date_end;
-		$this->fk_user_ouverture = $user->id;
-		$this->date_cloture = null;
-		$this->commentaire = $comment;
-
 		$error = 0;
 
 		$this->db->begin();
@@ -3119,15 +3108,26 @@ class ContratLigne extends CommonObjectLine
 		if ($resql) {
 			// Call trigger
 			$result = $this->call_trigger('LINECONTRACT_ACTIVATE', $user);
-			if ($result < 0) {
-				$error++;
+			if ($result < 0) $error++;
+			// End call triggers
+
+			if (! $error)
+			{
+				$this->statut = 4;
+				$this->date_ouverture = $date;
+				$this->date_fin_validite = $date_end;
+				$this->fk_user_ouverture = $user->id;
+				$this->date_cloture = null;
+				$this->commentaire = $comment;
+
+				$this->db->commit();
+				return 1;
+			}
+			else
+			{
 				$this->db->rollback();
 				return -1;
 			}
-			// End call triggers
-
-			$this->db->commit();
-			return 1;
 		} else {
 			$this->error = $this->db->lasterror();
 			$this->db->rollback();

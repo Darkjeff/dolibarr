@@ -128,7 +128,7 @@ if (empty($reshook))
     	    //If the user set a comment, we add it to the log comment
     	    $comment = ((isset($_POST['note_holiday'][$userID]) && !empty($_POST['note_holiday'][$userID])) ? ' ('.$_POST['note_holiday'][$userID].')' : '');
 
-    	    //print 'eee'.$val['rowid'].'-'.$userValue;
+    	    //print 'holiday: '.$val['rowid'].'-'.$userValue;
     		if ($userValue != '')
     		{
     			// We add the modification to the log (must be before update of sold because we read current value of sold)
@@ -216,9 +216,11 @@ if (empty($user->rights->holiday->read_all))
 	$userchilds=$user->getAllChildIds(1);
 	$filters.=' AND u.rowid IN ('.join(', ',$userchilds).')';
 }
-
-$filters.=natural_search(array('u.firstname','u.lastname'), $search_name);
+if (!empty($search_name)) {
+	$filters.=natural_search(array('u.firstname','u.lastname'), $search_name);
+}
 if ($search_supervisor > 0) $filters.=natural_search(array('u.fk_user'), $search_supervisor, 2);
+$filters.= ' AND employee = 1';	// Only employee users are visible
 
 $listUsers = $holiday->fetchUsers(false, true, $filters);
 if (is_numeric($listUsers) && $listUsers < 0)
@@ -285,7 +287,8 @@ else
     {
         foreach($typeleaves as $key => $val)
         {
-        	print_liste_field_titre($val['label'], $_SERVER["PHP_SELF"], '', '', '', 'align="center"');
+        	$labeltype = ($langs->trans($val['code'])!=$val['code']) ? $langs->trans($val['code']) : $langs->trans($val['label']);
+        	print_liste_field_titre($labeltype, $_SERVER["PHP_SELF"], '', '', '', 'align="center"');
         }
     }
     else
@@ -354,8 +357,10 @@ else
         print '<td>';
         if ($canedit) print '<input type="text"'.($canedit?'':' disabled="disabled"').' class="maxwidthonsmartphone" value="" name="note_holiday['.$users['rowid'].']" size="30"/>';
         print '</td>';
+        
+        // Button modify
         print '<td>';
-        if (! empty($user->rights->holiday->define_holiday))
+        if (! empty($user->rights->holiday->define_holiday))	// Allowed to set the balance of any user
         {
             print '<input type="submit" name="update_cp['.$users['rowid'].']" value="'.dol_escape_htmltag($langs->trans("Update")).'" class="button"/>';
         }

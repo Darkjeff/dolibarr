@@ -318,6 +318,7 @@ if ($action == 'writebookkeeping') {
 					$bookkeeping->code_journal = $journal;
 					$bookkeeping->journal_label = $journal_label;
 					$bookkeeping->fk_user_author = $user->id;
+					$bookkeeping->entity = $conf->entity;
 
 					$totaldebit += $bookkeeping->debit;
 					$totalcredit += $bookkeeping->credit;
@@ -371,6 +372,7 @@ if ($action == 'writebookkeeping') {
 						$bookkeeping->code_journal = $journal;
 						$bookkeeping->journal_label = $journal_label;
 						$bookkeeping->fk_user_author = $user->id;
+						$bookkeeping->entity = $conf->entity;
 
 						$totaldebit += $bookkeeping->debit;
 						$totalcredit += $bookkeeping->credit;
@@ -430,6 +432,7 @@ if ($action == 'writebookkeeping') {
 						$bookkeeping->code_journal = $journal;
 						$bookkeeping->journal_label = $journal_label;
 						$bookkeeping->fk_user_author = $user->id;
+						$bookkeeping->entity = $conf->entity;
 
 						$totaldebit += $bookkeeping->debit;
 						$totalcredit += $bookkeeping->credit;
@@ -482,6 +485,7 @@ if ($action == 'writebookkeeping') {
 					$bookkeeping->code_journal = $journal;
 					$bookkeeping->journal_label = $journal_label;
 					$bookkeeping->fk_user_author = $user->id;
+					$bookkeeping->entity = $conf->entity;
 
 					$totaldebit += $bookkeeping->debit;
 					$totalcredit += $bookkeeping->credit;
@@ -623,8 +627,8 @@ if ($action == 'exportcsv') {
 				print '"' . length_accounta(html_entity_decode($k)) . '"' . $sep;
 				print '"' . $conf->global->ACCOUNTING_ACCOUNT_SUPPLIER . '"' . $sep;
 				print '"' . length_accounta(html_entity_decode($k)) . '"' . $sep;
-				print '"' . $langs->trans("Code_tiers") . '"' . $sep;
-				print '"' . utf8_decode ( dol_trunc($companystatic->name, 16) ) . ' - ' . $val["refsuppliersologest"] . ' - ' . $langs->trans("Code_tiers") . '"' . $sep;
+				print '"' . $langs->trans("Thirdparty") . '"' . $sep;
+				print '"' . utf8_decode ( dol_trunc($companystatic->name, 16) ) . ' - ' . $val["refsuppliersologest"] . ' - ' . $langs->trans("Thirdparty") . '"' . $sep;
 				print '"' . ($mt < 0 ? price(- $mt) : '') . '"' . $sep;
 				print '"' . ($mt >= 0 ? price($mt) : '') . '"'. $sep;
 				print '"' . $journal . '"' ;
@@ -690,7 +694,7 @@ if ($action == 'exportcsv') {
 						print '"' . length_accounta(html_entity_decode($k)) . '"' . $sep;
 						print '"' . length_accounta(html_entity_decode($k)) . '"' . $sep;
 						print '"' . length_accounta(html_entity_decode($k)) . '"' . $sep;
-						print '"' . $langs->trans("Code_tiers") . '"' . $sep;
+						print '"' . $langs->trans("Thirdparty") . '"' . $sep;
 						print '"' . utf8_decode ( dol_trunc($companystatic->name, 16) ) . ' - ' . $val["refsuppliersologest"] . ' - ' . $langs->trans("VAT") . ' NPR"' . $sep;
 						print '"' . ($mt < 0 ? price(- $mt) : '') . '"' . $sep;
 						print '"' . ($mt >= 0 ? price($mt) : '') . '"'. $sep;
@@ -878,7 +882,7 @@ if (empty($action) || $action == 'view') {
 				else print $accountoshow;
 				print '</td>';
 				print "<td>" . $companystatic->getNomUrl(0, 'supplier', 16) . ' - ' . $invoicestatic->ref_supplier . ' - ' . $langs->trans("SubledgerAccount") . "</td>";
-				print '<td align="right">' . ($mt < 0 ? - price(- $mt) : '') . "</td>";
+				print '<td align="right">'. ($mt < 0 ? price(- $mt) : '') . "</td>";
 				print '<td align="right">' . ($mt >= 0 ? price($mt) : '') . "</td>";
 				print "</tr>";
 			//}
@@ -972,7 +976,7 @@ if (empty($action) || $action == 'view') {
 					print "<td>";
 					print '</td>';
 					print "<td>" . $companystatic->getNomUrl(0, 'supplier', 16) . ' - ' . $invoicestatic->ref_supplier . ' - ' . $langs->trans("VAT") . " NPR (counterpart)</td>";
-					print '<td align="right">' . ($mt < 0 ? - price(- $mt) : '') . "</td>";
+					print '<td align="right">' . ($mt < 0 ? price(- $mt) : '') . "</td>";
 					print '<td align="right">' . ($mt >= 0 ? price($mt) : '') . "</td>";
 					print "</tr>";
 				}
