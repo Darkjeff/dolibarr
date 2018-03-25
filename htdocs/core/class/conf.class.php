@@ -518,6 +518,10 @@ class Conf
         if (empty($this->global->TAX_MODE_SELL_SERVICE)) $this->global->TAX_MODE_SELL_SERVICE='payment';
         if (empty($this->global->TAX_MODE_BUY_SERVICE))  $this->global->TAX_MODE_BUY_SERVICE='payment';
 
+		if (empty($this->global->TAX_CASHING_PROD_PAYMENT)) {
+			if ($this->global->TAX_MODE == 0) $this->global->TAX_CASHING_PROD_PAYMENT = 'PRODDEBIT';
+			else $this->global->TAX_CASHING_PROD_PAYMENT = 'RAS';
+		}
 		// Delay before warnings
 		// Avoid strict errors. TODO: Replace xxx->warning_delay with a property ->warning_delay_xxx
 		if (isset($this->agenda)) {

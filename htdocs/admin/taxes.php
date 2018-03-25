@@ -41,6 +41,7 @@ $action = GETPOST('action','alpha');
 // Other parameters
 $list = array (
 		'ACCOUNTING_VAT_PAY_ACCOUNT'
+		, 'TAX_CASHING_PROD_PAYMENT'
 );
 
 
@@ -61,12 +62,16 @@ $list = array (
 // Service      On invoice              On invoice
 
 $tax_mode = empty($conf->global->TAX_MODE)?0:$conf->global->TAX_MODE;
+if ($tax_mode) $tax_cashing_prod_payment = "RAS";
+else  $tax_cashing_prod_payment = empty($conf->global->TAX_CASHING_PROD_PAYMENT)?"RAS":$conf->global->TAX_CASHING_PROD_PAYMENT;
+
 
 if ($action == 'update') {
 	$error = 0;
 
 	// Tax mode
 	$tax_mode = GETPOST('tax_mode','alpha');
+	$tax_cashing_prod_payment = GETPOST('TAX_CASHING_PROD_PAYMENT','alpha');
 
 	$db->begin();
 
@@ -82,7 +87,14 @@ if ($action == 'update') {
 			$value = 'invoice';
 			break;
 	}
+	$valueProd =  'invoice';
+	if ($tax_mode == 0 and $tax_cashing_prod_payment == 0) $valueProd = 'payment';
+	
+    $res = dolibarr_set_const($db, 'TAX_CASHING_PROD_PAYMENT', $tax_cashing_prod_payment,'chaine',0,'',$conf->entity);
+    if (! $res > 0) $error++;
 
+	
+	
 	$res = dolibarr_set_const($db, 'TAX_MODE_SELL_PRODUCT', 'invoice','chaine',0,'',$conf->entity);
 	if (! $res > 0) $error++;
 	$res = dolibarr_set_const($db, 'TAX_MODE_BUY_PRODUCT', 'invoice','chaine',0,'',$conf->entity);
@@ -183,6 +195,15 @@ else
 	print '<tr class="oddeven"><td width="200"><input type="radio" name="tax_mode" value="1"'.($tax_mode == 1 ? ' checked' : '').'> '.$langs->trans('OptionVATDebitOption').'</td>';
 	print '<td>'.nl2br($langs->trans('OptionVatDebitOptionDesc'))."</td></tr>\n";
 
+			// Param
+	$label = $langs->trans($key); 
+	print '<tr><td colspan=2><label for="TAX_CASHING_PROD_PAYMENT">'.$langs->trans('TAX_CASHING_PROD_PAYMENT').'</label></td>';
+
+	// Value
+	print '<td>';
+	print select_mod_tva($tax_cashing_prod_payment, 'TAX_CASHING_PROD_PAYMENT', $tax_mode);
+
+
 	print "</table>\n";
 
 	print '<br>';
@@ -202,8 +223,20 @@ else
 	print '<td>';
 	print $langs->trans("OnDelivery");
 	print ' ('.$langs->trans("SupposedToBeInvoiceDate").')';
-	print '</td></tr>';
-
+	print '</td>';
+	print '<td>';
+    print '<span id="Tax_mod_libProdSell">';
+   // if ($tax_mode == 0 and $tax_cashing_prod_payment == 1)
+    if ($tax_mode == 0 and $tax_cashing_prod_payment ==  'PRODPAYMENT')
+    {
+        print $langs->trans("OnPayment");
+        print ' ('.$langs->trans("SupposedToBePaymentDate").')';
+	}
+	else {
+		print $langs->trans("OnDelivery");
+		print ' ('.$langs->trans("SupposedToBeInvoiceDate").')';
+	}
+    print '</td></tr>';
 	// Services
 	print '<tr class="oddeven"><td>'.$langs->trans("Services").'</td>';
 	print '<td>';
@@ -280,6 +313,60 @@ print '</table>';
 print '<div class="center">';
 print '<input type="submit" class="button" value="' . $langs->trans("Modify") . '" name="button">';
 print '</div>';
+
+function PrepJavascript()
+{
+	global $langs;
+	$out = '';
+	$out .= '<script>
+			function ModifAff(o) {
+				var select = document.getElementById ("TAX_CASHING_PROD_PAYMENT");
+
+				selected =  select.selectedIndex;
+				selectvalue= select.value;
+				if (o.id == "tax_mode_std" || o.id == "TAX_CASHING_PROD_PAYMENT") {
+					 tax_cashing_prof_invoice = document.getElementById("TAX_CASHING_PROD_PAYMENT").value;
+					if (tax_cashing_prof_invoice == "PRODPAYMENT") {
+						libProd="'.$langs->trans("OnPayment").' ('.$langs->trans("SupposedToBePaymentDate").')";	
+						libServ="'.$langs->trans("OnPayment").' ('.$langs->trans("SupposedToBePaymentDate").')";
+						select.options.remove (0);	
+						select.options.remove (1);	
+						var newOption = new Option ("'.$langs->trans('TAX_CASHING_CHOIIX1').'", "PRODPAYMENT");
+						select.options.add (newOption);	
+						var newOption = new Option ("'.$langs->trans('TAX_CASHING_CHOIIX2').'", "PRODDEBIT");
+						select.options.add (newOption);	
+						if (o.id == "TAX_CASHING_PROD_PAYMENT")  select.selectedIndex = selected;
+					}
+					else {
+						libProd="'.$langs->trans("OnDelivery").' ('.$langs->trans("SupposedToBeInvoiceDate").')";
+						libServ="'.$langs->trans("OnPayment").' ('.$langs->trans("SupposedToBePaymentDate").')";
+						select.options.remove (0);	
+						select.options.remove (1);	
+						var newOption = new Option ("'.$langs->trans('TAX_CASHING_CHOIIX1').'", "PRODPAYMENT");
+						select.options.add (newOption);	
+						var newOption = new Option ("'.$langs->trans('TAX_CASHING_CHOIIX2').'", "PRODDEBIT");
+						select.options.add (newOption);			
+						if (o.id == "TAX_CASHING_PROD_PAYMENT")  select.selectedIndex = selected;
+					};
+					if (selectvalue == "RAS") select.selectedIndex =  1;
+				 }
+				 if (o.id == "tax_mode_debit" ) {
+					libProd="'.$langs->trans("OnDelivery").' ('.$langs->trans("SupposedToBeInvoiceDate").')";
+					libServ="'.$langs->trans("OnDelivery").' ('.$langs->trans("SupposedToBeInvoiceDate").')";	
+					select.options.remove (0);	
+					select.options.remove (1);	
+					var newOption = new Option ("'.$langs->trans('TAX_CASHING_CHOIIX0').'", "RAS");
+					select.options.add (newOption);	
+				 };
+				document.getElementById("Tax_mod_libProdBuy").innerHTML=libProd;
+				document.getElementById("Tax_mod_libProdSell").innerHTML=libProd;
+				document.getElementById("Tax_mod_libServBuy").innerHTML=libServ;
+				document.getElementById("Tax_mod_libServSell").innerHTML=libServ;
+				 /*console.log(o.id);*/
+			}
+			</script>';
+	return $out;
+} //PrepJavascript
 
 print '</form>';
 
