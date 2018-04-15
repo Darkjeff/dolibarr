@@ -46,6 +46,13 @@ ALTER TABLE llx_inventory ADD COLUMN fk_user_modif integer;
 ALTER TABLE llx_inventory ADD COLUMN fk_user_valid integer;
 ALTER TABLE llx_inventory ADD COLUMN import_key varchar(14);
 
+-- Missing Chart of accounts in migration 7.0.0
+INSERT INTO llx_accounting_system (fk_country, pcg_version, label, active) VALUES (  1, 'PCG14-DEV', 'The developed accountancy french plan 2014', 1);
+INSERT INTO llx_accounting_system (fk_country, pcg_version, label, active) VALUES (  6, 'PCG_SUISSE', 'Switzerland plan', 1);
+INSERT INTO llx_accounting_system (fk_country, pcg_version, label, active) VALUES (140, 'PCN-LUXEMBURG', 'Plan comptable normalisé Luxembourgeois', 1);
+INSERT INTO llx_accounting_system (fk_country, pcg_version, label, active) VALUES ( 80, 'DK-STD', 'Standardkontoplan fra SKAT', 1);
+INSERT INTO llx_accounting_system (fk_country, pcg_version, label, active) VALUES ( 10, 'PCT', 'The Tunisia plan', 1);
+INSERT INTO llx_accounting_system (fk_country, pcg_version, label, active) VALUES ( 12, 'PCG', 'The Moroccan chart of accounts', 1);
 
 -- For 8.0
 
@@ -371,7 +378,6 @@ ALTER TABLE llx_asset ADD INDEX idx_asset_entity (entity);
 ALTER TABLE llx_asset ADD INDEX idx_asset_fk_soc (fk_soc);
 
 ALTER TABLE llx_asset ADD INDEX idx_asset_fk_asset_type (fk_asset_type);
-ALTER TABLE llx_asset ADD CONSTRAINT fk_asset_asset_type FOREIGN KEY (fk_asset_type)    REFERENCES llx_asset_type (rowid);
 
 create table llx_asset_extrafields
 (
@@ -395,6 +401,8 @@ create table llx_asset_type
 
 ALTER TABLE llx_asset_type ADD UNIQUE INDEX uk_asset_type_label (label, entity);
 
+ALTER TABLE llx_asset ADD CONSTRAINT fk_asset_asset_type FOREIGN KEY (fk_asset_type)    REFERENCES llx_asset_type (rowid);
+
 create table llx_asset_type_extrafields
 (
   rowid                     integer AUTO_INCREMENT PRIMARY KEY,
@@ -410,4 +418,6 @@ INSERT INTO llx_accounting_journal (rowid, code, label, nature, active) VALUES (
 UPDATE llx_accounting_account set account_parent = 0 WHERE account_parent = '' OR account_parent IS NULL;
 ALTER TABLE llx_accounting_account MODIFY COLUMN account_parent integer DEFAULT 0;
 ALTER TABLE llx_accounting_account ADD INDEX idx_accounting_account_account_parent (account_parent);
+
+ALTER TABLE llx_extrafields MODIFY COLUMN list VARCHAR(128);
 

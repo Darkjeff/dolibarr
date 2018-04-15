@@ -45,8 +45,8 @@ $colorbacktabcard1='255,255,255';  // card
 $colorbacktabactive='234,234,234';
 $colorbacklineimpair1='255,255,255';    // line impair
 $colorbacklineimpair2='255,255,255';    // line impair
-$colorbacklinepair1='250,250,250';    // line pair
-$colorbacklinepair2='248,248,248';    // line pair
+$colorbacklinepair1='248,248,248';    // line pair
+$colorbacklinepair2='246,246,246';    // line pair
 $colorbacklinepairhover='244,244,244';    // line pair
 $colorbacklinebreak='214,218,220';
 $colorbackbody='248,248,248';
@@ -73,9 +73,6 @@ top_httphead('text/css');
 // Important: Following code is to avoid page request by browser and PHP CPU at each Dolibarr page access.
 if (empty($dolibarr_nocache)) header('Cache-Control: max-age=3600, public, must-revalidate');
 else header('Cache-Control: no-cache');
-
-// On the fly GZIP compression for all pages (if browser support it). Must set the bit 3 of constant to 1.
-if (isset($conf->global->MAIN_OPTIMIZE_SPEED) && ($conf->global->MAIN_OPTIMIZE_SPEED & 0x04)) { ob_start("ob_gzhandler"); }
 
 if (GETPOST('theme','alpha')) $conf->theme=GETPOST('theme','alpha');  // If theme was forced on URL
 if (GETPOST('lang', 'aZ09')) $langs->setDefaultLang(GETPOST('lang', 'aZ09'));	// If language was forced on URL
@@ -1584,17 +1581,6 @@ li.tmenu, li.tmenusel {
 	font-weight: normal;
 }
 li.tmenusel, li.tmenu:hover {
-/*
-    background-image: -o-linear-gradient(bottom, rgba(250,250,250,0.3) 0%, rgba(0,0,0,0.3) 100%) !important;
-    background-image: -moz-linear-gradient(bottom, rgba(0,0,0,0.5) 0%, rgba(250,250,250,0) 100%) !important;
-    background-image: -webkit-linear-gradient(bottom, rgba(0,0,0,0.3) 0%, rgba(250,250,250,0) 100%) !important;
-    background-image: -ms-linear-gradient(bottom, rgba(250,250,250,0.3) 0%, rgba(0,0,0,0.3) 100%) !important;
-    background-image: linear-gradient(bottom, rgba(250,250,250,0.3) 0%, rgba(0,0,0,0.3) 100%) !important;
-	background: rgb(<?php echo $colorbackhmenu1 ?>);
-*/
-	/* background: url(<?php echo dol_buildpath($path.'/theme/'.$theme.'/img/nav-overlay3.png',1); ?>) 50% 0 repeat-x !important; Nicer but problem when menu wrap on 2 lines */
-}
-li.tmenusel, li.tmenu:hover {
 	opacity: .50; /* show only a slight shadow */
 }
 .tmenuend .tmenuleft { width: 0px; }
@@ -1609,7 +1595,6 @@ div.tmenuleft
 	<?php if (! $disableimages) { ?>
 	height: <?php print $heightmenu+4; ?>px;
 	<?php } ?>
-	/* background: url(<?php echo dol_buildpath($path.'/theme/'.$theme.'/img/menutab-r.png',1); ?>) 0 -6px no-repeat; */
 	<?php } ?>
 }
 div.tmenucenter
@@ -4251,7 +4236,6 @@ ul.ecmjqft li {
 	padding: 0px;
 	padding-left: 20px;
 	margin: 0px;
-	white-space: nowrap;
 	display: block;
 }
 

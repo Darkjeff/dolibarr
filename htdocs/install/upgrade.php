@@ -183,7 +183,7 @@ if (! GETPOST('action','aZ09') || preg_match('/upgrade/i',GETPOST('action','aZ09
         print '<tr><td>'.$langs->trans("ServerVersion").'</td>';
         print '<td align="right">'.$version.'</td></tr>';
         dolibarr_install_syslog("upgrade: " . $langs->transnoentities("ServerVersion") . ": " .$version);
-        if ($db->type == 'mysqli')
+        if ($db->type == 'mysqli' && function_exists('mysqli_get_charset'))
         {
         	$tmparray = $db->db->get_charset();
         	print '<tr><td>'.$langs->trans("ClientCharset").'</td>';
@@ -420,7 +420,7 @@ if (empty($actiondone))
 
 $ret=0;
 if (! $ok && isset($argv[1])) $ret=1;
-dol_syslog("Exit ".$ret);
+dolibarr_install_syslog("Exit ".$ret);
 
 dolibarr_install_syslog("--- upgrade: end ".((! $ok && empty($_GET["ignoreerrors"])) || $dirmodule));
 $nonext = (! $ok && empty($_GET["ignoreerrors"]))?2:0;
