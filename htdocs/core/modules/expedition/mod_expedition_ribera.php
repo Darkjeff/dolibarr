@@ -1,5 +1,7 @@
 <?php
-/* Copyright (C) 2011      Juanjo Menent	    <jmenent@2byte.es>
+/* Copyright (C) 2011       Juanjo Menent	        <jmenent@2byte.es>
+ * Copyright (C) 2019-2024  Frédéric France         <frederic.france@free.fr>
+ * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,8 +14,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * or see http://www.gnu.org/
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * or see https://www.gnu.org/
  */
 
 /**
@@ -22,116 +24,129 @@
  *  \brief      File of class to manage expedition numbering rules Ribera
  */
 
-require_once DOL_DOCUMENT_ROOT .'/core/modules/expedition/modules_expedition.php';
+require_once DOL_DOCUMENT_ROOT.'/core/modules/expedition/modules_expedition.php';
 
 /**
  *	Class to manage expedition numbering rules Ribera
  */
 class mod_expedition_ribera extends ModelNumRefExpedition
 {
-	var $version='dolibarr';
-	var $error = '';
-	var $nom = 'Ribera';
+	/**
+	 * Dolibarr version of the loaded document
+	 * @var string Version, possible values are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated' or a version string like 'x.y.z'''|'development'|'dolibarr'|'experimental'
+	 */
+	public $version = 'dolibarr';
+
+	/**
+	 * @var string Error message
+	 */
+	public $error = '';
+
+	/**
+	 * @var string Nom du modele
+	 * @deprecated
+	 * @see $name
+	 */
+	public $nom = 'Ribera';
+
+	/**
+	 * @var string model name
+	 */
+	public $name = 'Ribera';
 
 	/**
 	 *	Return default description of numbering model
 	 *
-	 *	@return     string      text description
+	 *	@param	Translate	$langs      Lang object to use for output
+	 *  @return string      			Descriptive text
 	 */
-	function info()
-    {
-    	global $conf,$langs;
+	public function info($langs)
+	{
+		global $langs, $db;
 
 		$langs->load("bills");
 
-		$form = new Form($this->db);
+		$form = new Form($db);
 
 		$texte = $langs->trans('GenericNumRefModelDesc')."<br>\n";
-		$texte.= '<form action="'.$_SERVER["PHP_SELF"].'" method="POST">';
-		$texte.= '<input type="hidden" name="token" value="'.$_SESSION['newtoken'].'">';
-		$texte.= '<input type="hidden" name="action" value="updateMask">';
-		$texte.= '<input type="hidden" name="maskconstexpedition" value="EXPEDITION_RIBERA_MASK">';
-		$texte.= '<table class="nobordernopadding" width="100%">';
+		$texte .= '<form action="'.$_SERVER["PHP_SELF"].'" method="POST">';
+		$texte .= '<input type="hidden" name="token" value="'.newToken().'">';
+		$texte .= '<input type="hidden" name="action" value="updateMask">';
+		$texte .= '<input type="hidden" name="maskconstexpedition" value="EXPEDITION_RIBERA_MASK">';
+		$texte .= '<input type="hidden" name="page_y" value="">';
 
-		$tooltip=$langs->trans("GenericMaskCodes",$langs->transnoentities("Shipment"),$langs->transnoentities("Shipment"));
-		$tooltip.=$langs->trans("GenericMaskCodes2");
-		$tooltip.=$langs->trans("GenericMaskCodes3");
-		$tooltip.=$langs->trans("GenericMaskCodes4a",$langs->transnoentities("Shipment"),$langs->transnoentities("Shipment"));
-		$tooltip.=$langs->trans("GenericMaskCodes5");
+		$texte .= '<table class="nobordernopadding centpercent">';
 
-		$texte.= '<tr><td>'.$langs->trans("Mask").':</td>';
-		$texte.= '<td align="right">'.$form->textwithpicto('<input type="text" class="flat" size="24" name="maskexpedition" value="'.$conf->global->EXPEDITION_RIBERA_MASK.'">',$tooltip,1,1).'</td>';
-		$texte.= '<td align="left" rowspan="2">&nbsp; <input type="submit" class="button" value="'.$langs->trans("Modify").'" name="Button"></td>';
-		$texte.= '</tr>';
-		$texte.= '</table>';
-		$texte.= '</form>';
+		$tooltip = $langs->trans("GenericMaskCodes", $langs->transnoentities("Shipment"), $langs->transnoentities("Shipment"));
+		$tooltip .= $langs->trans("GenericMaskCodes1");
+		$tooltip .= '<br>';
+		$tooltip .= $langs->trans("GenericMaskCodes2");
+		$tooltip .= '<br>';
+		$tooltip .= $langs->trans("GenericMaskCodes3");
+		$tooltip .= $langs->trans("GenericMaskCodes4a", $langs->transnoentities("Shipment"), $langs->transnoentities("Shipment"));
+		$tooltip .= $langs->trans("GenericMaskCodes5");
+		$tooltip .= '<br>'.$langs->trans("GenericMaskCodes5b");
+
+		$texte .= '<tr><td>'.$langs->trans("Mask").':</td>';
+		$texte .= '<td class="right">'.$form->textwithpicto('<input type="text" class="flat minwidth175" name="maskexpedition" value="'.getDolGlobalString('EXPEDITION_RIBERA_MASK').'">', $tooltip, 1, 'help', 'valignmiddle', 0, 3, $this->name).'</td>';
+		$texte .= '<td class="left" rowspan="2">&nbsp; <input type="submit" class="button button-edit reposition smallpaddingimp" name="Button" value="'.$langs->trans("Save").'"></td>';
+		$texte .= '</tr>';
+		$texte .= '</table>';
+		$texte .= '</form>';
 
 		return $texte;
-    }
+	}
 
 	/**
 	 *	Return numbering example
 	 *
-	 *	@return     string      Example
+	 *	@return     string|int<0,0>      Example
 	 */
-    function getExample()
-    {
-     	global $conf,$langs,$mysoc;
+	public function getExample()
+	{
+		global $db, $langs;
 
-    	$old_code_client=$mysoc->code_client;
-    	$old_code_type=$mysoc->typent_code;
-    	$mysoc->code_client='CCCCCCCCCC';
-    	$mysoc->typent_code='TTTTTTTTTT';
-     	$numExample = $this->getNextValue($mysoc,'');
-		$mysoc->code_client=$old_code_client;
-		$mysoc->typent_code=$old_code_type;
+		require_once DOL_DOCUMENT_ROOT . '/expedition/class/expedition.class.php';
+		require_once DOL_DOCUMENT_ROOT . '/societe/class/societe.class.php';
 
-		if (! $numExample)
-		{
+		$shipment = new Expedition($db);
+		$shipment->initAsSpecimen();
+		$thirdparty = new Societe($db);
+		$thirdparty->initAsSpecimen();
+
+		$numExample = $this->getNextValue($thirdparty, $shipment);
+
+		if (!$numExample) {
 			$numExample = $langs->trans('NotConfigured');
 		}
+
 		return $numExample;
-    }
+	}
 
 	/**
 	 *	Return next value
 	 *
-	 *	@param	Societe		$objsoc     Third party object
-	 *	@param	Object		$shipment	Shipment object
-	 *	@return string      			Value if OK, 0 if KO
+	 *	@param	Societe			$objsoc     Third party object
+	 *	@param	Expedition		$shipment	Shipment object
+	 *	@return string|int<-1,0> 			Value if OK, 0 or -1 if KO
 	 */
-    function getNextValue($objsoc,$shipment)
-    {
-		global $db,$conf;
+	public function getNextValue($objsoc, $shipment)
+	{
+		global $db;
 
-		require_once DOL_DOCUMENT_ROOT .'/core/lib/functions2.lib.php';
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
 
-		$mask=$conf->global->EXPEDITION_RIBERA_MASK;
+		$mask = getDolGlobalString('EXPEDITION_RIBERA_MASK');
 
-		if (! $mask)
-		{
-			$this->error='NotConfigured';
+		if (empty($mask)) {
+			$this->error = 'NotConfigured';
 			return 0;
 		}
 
-		$date = $shipment->date_expedition;
+		$date = $shipment->date_shipping;
 
-		$numFinal=get_next_value($db,$mask,'expedition','ref','',$objsoc,$date);
+		$numFinal = get_next_value($db, $mask, 'expedition', 'ref', '', $objsoc, $date);
 
 		return  $numFinal;
 	}
-
-	/**
-	 *  Return next free value
-	 *
-	 *	@param	Societe		$objsoc     Third party object
-	 *	@param	Object		$objforref	Shipment object
-	 *	@return string      			Next free value
-	 */
-    function expedition_get_num($objsoc,$objforref)
-    {
-        return $this->getNextValue($objsoc,$objforref);
-    }
-
 }
-

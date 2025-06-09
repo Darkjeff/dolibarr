@@ -1,7 +1,8 @@
 <?php
 /* Copyright (C) 2003      Rodolphe Quiedeville <rodolphe@quiedeville.org>
  * Copyright (c) 2005-2008 Laurent Destailleur  <eldy@users.sourceforge.net>
- * Copyright (C) 2005-2009 Regis Houssin        <regis.houssin@capnetworks.com>
+ * Copyright (C) 2005-2009 Regis Houssin        <regis.houssin@inodbox.com>
+ * Copyright (C) 2024-2025	MDW					<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,73 +15,93 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
  *       \file       htdocs/compta/deplacement/class/deplacementstats.class.php
- *       \ingroup    factures
- *       \brief      Fichier de la classe de gestion des stats des deplacement et notes de frais
+ *       \ingroup    invoices
+ *       \brief      File for class managaging the statistics of travel and expense notes
  */
-include_once DOL_DOCUMENT_ROOT . '/core/class/stats.class.php';
-include_once DOL_DOCUMENT_ROOT . '/compta/deplacement/class/deplacement.class.php';
+include_once DOL_DOCUMENT_ROOT.'/core/class/stats.class.php';
+include_once DOL_DOCUMENT_ROOT.'/compta/deplacement/class/deplacement.class.php';
 
 /**
- *	Classe permettant la gestion des stats des deplacements et notes de frais
+ *	Class to manage the statistics of travel and expense notes
  */
 class DeplacementStats extends Stats
 {
-    public $table_element;
+	/**
+	 * @var string Name of table without prefix where object is stored
+	 */
+	public $table_element;
 
-    var $socid;
-    var $userid;
+	/**
+	 * @var int
+	 */
+	public $socid;
+	/**
+	 * @var int
+	 */
+	public $userid;
 
-    var $from;
-    var $field;
-    var $where;
+	/**
+	 * @var string
+	 */
+	public $from;
+	/**
+	 * @var string
+	 */
+	public $field;
+	/**
+	 * @var string
+	 */
+	public $where;
 
 	/**
 	 * Constructor
 	 *
 	 * @param 	DoliDB		$db		   Database handler
 	 * @param 	int			$socid	   Id third party
-     * @param   mixed		$userid    Id user for filter or array of user ids
+	 * @param   int|int[]	$userid    Id user for filter or array of user ids
 	 * @return 	void
 	 */
-	function __construct($db, $socid=0, $userid=0)
+	public function __construct($db, $socid = 0, $userid = 0)
 	{
 		global $conf;
 
 		$this->db = $db;
-        $this->socid = $socid;
-        $this->userid = $userid;
+		$this->socid = $socid;
+		$this->userid = $userid;
 
-		$object=new Deplacement($this->db);
+		$object = new Deplacement($this->db);
 		$this->from = MAIN_DB_PREFIX.$object->table_element;
-		$this->field='km';
+		$this->field = 'km';
 
 		$this->where = " fk_statut > 0";
-		$this->where.= " AND entity = ".$conf->entity;
-		if ($this->socid)
-		{
-			$this->where.=" AND fk_soc = ".$this->socid;
+		$this->where .= " AND entity = ".$conf->entity;
+		if ($this->socid > 0) {
+			$this->where .= " AND fk_soc = ".((int) $this->socid);
 		}
-		if (is_array($this->userid) && count($this->userid) > 0) $this->where.=' AND fk_user IN ('.join(',',$this->userid).')';
-        else if ($this->userid > 0) $this->where.=' AND fk_user = '.$this->userid;
+		if (is_array($this->userid) && count($this->userid) > 0) {
+			$this->where .= ' AND fk_user IN ('.$this->db->sanitize(implode(',', $this->userid)).')';
+		} elseif ($this->userid > 0) {
+			$this->where .= ' AND fk_user = '.((int) $this->userid);
+		}
 	}
 
 
 	/**
 	 * 	Renvoie le nombre de facture par annee
 	 *
-	 *	@return		array	Array of values
+	 * @return	array<array{0:int,1:int}>				Array of nb each year
 	 */
-	function getNbByYear()
+	public function getNbByYear()
 	{
 		$sql = "SELECT YEAR(dated) as dm, count(*)";
-		$sql.= " FROM ".$this->from;
-		$sql.= " GROUP BY dm DESC";
-		$sql.= " WHERE ".$this->where;
+		$sql .= " FROM ".$this->from;
+		$sql .= " GROUP BY dm DESC";
+		$sql .= " WHERE ".$this->where;
 
 		return $this->_getNbByYear($sql);
 	}
@@ -89,20 +110,20 @@ class DeplacementStats extends Stats
 	/**
 	 * 	Renvoie le nombre de facture par mois pour une annee donnee
 	 *
-	 *	@param	string	$year	Year to scan
-     *	@param	int		$format		0=Label of absiss is a translated text, 1=Label of absiss is month number, 2=Label of absiss is first letter of month
-	 *	@return	array			Array of values
+	 *	@param	int		$year		Year to scan
+	 *	@param	int		$format		0=Label of abscissa is a translated text, 1=Label of abscissa is month number, 2=Label of abscissa is first letter of month
+	 * @return	array<int<0,11>,array{0:int<1,12>,1:int}>	Array with number by month
 	 */
-	function getNbByMonth($year, $format=0)
+	public function getNbByMonth($year, $format = 0)
 	{
 		$sql = "SELECT MONTH(dated) as dm, count(*)";
-		$sql.= " FROM ".$this->from;
-		$sql.= " WHERE YEAR(dated) = ".$year;
-		$sql.= " AND ".$this->where;
-		$sql.= " GROUP BY dm";
-        $sql.= $this->db->order('dm','DESC');
+		$sql .= " FROM ".$this->from;
+		$sql .= " WHERE YEAR(dated) = ".((int) $year);
+		$sql .= " AND ".$this->where;
+		$sql .= " GROUP BY dm";
+		$sql .= $this->db->order('dm', 'DESC');
 
-		$res=$this->_getNbByMonth($year, $sql, $format);
+		$res = $this->_getNbByMonth($year, $sql, $format);
 		//var_dump($res);print '<br>';
 		return $res;
 	}
@@ -112,19 +133,19 @@ class DeplacementStats extends Stats
 	 * 	Renvoie le montant de facture par mois pour une annee donnee
 	 *
 	 *	@param	int		$year		Year to scan
-     *	@param	int		$format		0=Label of absiss is a translated text, 1=Label of absiss is month number, 2=Label of absiss is first letter of month
-	 *	@return	array				Array of values
+	 *	@param	int		$format		0=Label of abscissa is a translated text, 1=Label of abscissa is month number, 2=Label of abscissa is first letter of month
+	 *  @return array<int<0,11>,array{0:int<1,12>,1:int|float}>	Array of values
 	 */
-	function getAmountByMonth($year, $format=0)
+	public function getAmountByMonth($year, $format = 0)
 	{
 		$sql = "SELECT date_format(dated,'%m') as dm, sum(".$this->field.")";
-		$sql.= " FROM ".$this->from;
-		$sql.= " WHERE date_format(dated,'%Y') = '".$year."'";
-		$sql.= " AND ".$this->where;
-		$sql.= " GROUP BY dm";
-		$sql.= $this->db->order('dm','DESC');
+		$sql .= " FROM ".$this->from;
+		$sql .= " WHERE date_format(dated,'%Y') = '".$this->db->escape((string) $year)."'";
+		$sql .= " AND ".$this->where;
+		$sql .= " GROUP BY dm";
+		$sql .= $this->db->order('dm', 'DESC');
 
-		$res=$this->_getAmountByMonth($year, $sql, $format);
+		$res = $this->_getAmountByMonth($year, $sql, $format);
 		//var_dump($res);print '<br>';
 		return $res;
 	}
@@ -133,16 +154,16 @@ class DeplacementStats extends Stats
 	 *	Return average amount
 	 *
 	 *	@param	int		$year		Year to scan
-	 *	@return	array				Array of values
+	 * @return	array<int<0,11>,array{0:int<1,12>,1:int|float}> 	Array with number by month
 	 */
-	function getAverageByMonth($year)
+	public function getAverageByMonth($year)
 	{
 		$sql = "SELECT date_format(dated,'%m') as dm, avg(".$this->field.")";
-		$sql.= " FROM ".$this->from;
-		$sql.= " WHERE date_format(dated,'%Y') = '".$year."'";
-		$sql.= " AND ".$this->where;
-		$sql.= " GROUP BY dm";
-        $sql.= $this->db->order('dm','DESC');
+		$sql .= " FROM ".$this->from;
+		$sql .= " WHERE date_format(dated,'%Y') = '".$this->db->escape((string) $year)."'";
+		$sql .= " AND ".$this->where;
+		$sql .= " GROUP BY dm";
+		$sql .= $this->db->order('dm', 'DESC');
 
 		return $this->_getAverageByMonth($year, $sql);
 	}
@@ -150,17 +171,16 @@ class DeplacementStats extends Stats
 	/**
 	 *	Return nb, total and average
 	 *
-	 *	@return	array				Array of values
+	 *  @return array<array{year:string,nb:string,nb_diff:float,total?:float,avg?:float,weighted?:float,total_diff?:float,avg_diff?:float,avg_weighted?:float}>    Array of values
 	 */
-	function getAllByYear()
+	public function getAllByYear()
 	{
 		$sql = "SELECT date_format(dated,'%Y') as year, count(*) as nb, sum(".$this->field.") as total, avg(".$this->field.") as avg";
-		$sql.= " FROM ".$this->from;
-		$sql.= " WHERE ".$this->where;
-		$sql.= " GROUP BY year";
-        $sql.= $this->db->order('year','DESC');
+		$sql .= " FROM ".$this->from;
+		$sql .= " WHERE ".$this->where;
+		$sql .= " GROUP BY year";
+		$sql .= $this->db->order('year', 'DESC');
 
 		return $this->_getAllByYear($sql);
 	}
 }
-

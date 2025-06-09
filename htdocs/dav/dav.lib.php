@@ -1,5 +1,6 @@
 <?php
 /* Copyright (C) 2018	Destailleur Laurent	<eldy@users.sourceforge.net>
+ * Copyright (C) 2024		MDW					<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,7 +13,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -22,21 +23,21 @@
  */
 
 // define CDAV_CONTACT_TAG if not
-if(!defined('CDAV_CONTACT_TAG'))
-{
-	if(isset($conf->global->CDAV_CONTACT_TAG))
-		define('CDAV_CONTACT_TAG', $conf->global->CDAV_CONTACT_TAG);
-		else
-			define('CDAV_CONTACT_TAG', '');
+if (!defined('CDAV_CONTACT_TAG')) {
+	if (getDolGlobalString('CDAV_CONTACT_TAG')) {
+		define('CDAV_CONTACT_TAG', getDolGlobalString('CDAV_CONTACT_TAG'));
+	} else {
+		define('CDAV_CONTACT_TAG', '');
+	}
 }
 
 // define CDAV_URI_KEY if not
-if(!defined('CDAV_URI_KEY'))
-{
-	if(isset($conf->global->CDAV_URI_KEY))
-		define('CDAV_URI_KEY', $conf->global->CDAV_URI_KEY);
-		else
-			define('CDAV_URI_KEY', substr(md5($_SERVER['HTTP_HOST']),0,8));
+if (!defined('CDAV_URI_KEY')) {
+	if (getDolGlobalString('CDAV_URI_KEY')) {
+		define('CDAV_URI_KEY', getDolGlobalString('CDAV_URI_KEY'));
+	} else {
+		define('CDAV_URI_KEY', substr(md5($_SERVER['HTTP_HOST']), 0, 8));
+	}
 }
 
 
@@ -45,7 +46,7 @@ if(!defined('CDAV_URI_KEY'))
 /**
  * Prepare array with list of tabs
  *
- * @return  array				Array of tabs to show
+ * @return	array<array{0:string,1:string,2:string}>	Array of tabs to show
  */
 function dav_admin_prepare_head()
 {
@@ -54,7 +55,7 @@ function dav_admin_prepare_head()
 	$h = 0;
 	$head = array();
 
-	$head[$h][0] = DOL_URL_ROOT.'/admin/dav.php?id='.$object->id;
+	$head[$h][0] = DOL_URL_ROOT.'/admin/dav.php';
 	$head[$h][1] = $langs->trans("WebDAV");
 	$head[$h][2] = 'webdav';
 	$h++;
@@ -63,10 +64,9 @@ function dav_admin_prepare_head()
 	// Entries must be declared in modules descriptor with line
 	// $this->tabs = array('entity:+tabname:Title:@mymodule:/mymodule/mypage.php?id=__ID__');   to add new tab
 	// $this->tabs = array('entity:-tabname);   												to remove a tab
-	complete_head_from_modules($conf,$langs,$object,$head,$h,'admindav');
+	complete_head_from_modules($conf, $langs, null, $head, $h, 'admindav');
 
-	complete_head_from_modules($conf,$langs,$object,$head,$h,'admindav','remove');
+	complete_head_from_modules($conf, $langs, null, $head, $h, 'admindav', 'remove');
 
 	return $head;
 }
-

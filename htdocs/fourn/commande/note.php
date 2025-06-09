@@ -1,9 +1,11 @@
 <?php
 /* Copyright (C) 2004-2005 Rodolphe Quiedeville <rodolphe@quiedeville.org>
  * Copyright (C) 2004-2016 Laurent Destailleur  <eldy@users.sourceforge.net>
- * Copyright (C) 2005-2009 Regis Houssin        <regis.houssin@capnetworks.com>
+ * Copyright (C) 2005-2009 Regis Houssin        <regis.houssin@inodbox.com>
  * Copyright (C) 2012      Marcos García        <marcosgdf@gmail.com>
- * Copyright (C) 2017      Ferran Marcet       	 <fmarcet@2byte.es>
+ * Copyright (C) 2017      Ferran Marcet       	<fmarcet@2byte.es>
+ * Copyright (C) 2024-2025  Frédéric France         <frederic.france@free.fr>
+ * Copyright (C) 2025		MDW						<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,122 +18,134 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
- *       \file       htdocs/fourn/commande/note.php
- *       \ingroup    commande
- *       \brief      Fiche note commande
+ *    \file       htdocs/fourn/commande/note.php
+ *    \ingroup    supplier order
+ *    \brief      page for notes on supplier orders
  */
 
+
+// Load Dolibarr environment
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/fourn.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/fourn/class/fournisseur.commande.class.php';
-if (! empty($conf->projet->enabled)) {
-	require_once DOL_DOCUMENT_ROOT . '/projet/class/project.class.php';
+if (isModEnabled('project')) {
+	require_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 }
 
-$langs->load("orders");
-$langs->load("suppliers");
-$langs->load("companies");
-$langs->load('stocks');
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 
-$id = GETPOST('facid','int')?GETPOST('facid','int'):GETPOST('id','int');
+// Load translation files required by the page
+$langs->loadLangs(array("suppliers", "orders", "companies", "stocks"));
+
+// Get Parameters
+$id = GETPOSTINT('facid') ? GETPOSTINT('facid') : GETPOSTINT('id');
 $ref = GETPOST('ref');
-$action = GETPOST('action','aZ09');
+$action = GETPOST('action', 'aZ09');
 
 // Security check
-if ($user->societe_id) $socid=$user->societe_id;
+if ($user->socid) {
+	$socid = $user->socid;
+}
+
+// Init Objects
+$hookmanager->initHooks(array('ordersuppliercardnote'));
 $result = restrictedArea($user, 'fournisseur', $id, 'commande_fournisseur', 'commande');
 
 $object = new CommandeFournisseur($db);
 $object->fetch($id, $ref);
 
-$permissionnote=$user->rights->fournisseur->commande->creer;	// Used by the include of actions_setnotes.inc.php
+// Permissions
+$permissionnote = ($user->hasRight("fournisseur", "commande", "creer") || $user->hasRight("supplier_order", "creer")); // Used by the include of actions_setnotes.inc.php
+$usercancreate	= ($user->hasRight("fournisseur", "commande", "creer") || $user->hasRight("supplier_order", "creer"));
+$permissiontoadd	= $usercancreate; // Used by the include of actions_addupdatedelete.inc.php
+$caneditproject = false;
 
 
 /*
  * Actions
  */
 
-include DOL_DOCUMENT_ROOT.'/core/actions_setnotes.inc.php';	// Must be include, not includ_once
+$reshook = $hookmanager->executeHooks('doActions', array(), $object, $action); // Note that $action and $object may have been modified by some hooks
+if ($reshook < 0) {
+	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
+}
+if (empty($reshook)) {
+	include DOL_DOCUMENT_ROOT.'/core/actions_setnotes.inc.php'; // Must be 'include', not 'include_once'
+}
 
 
 /*
  * View
  */
-$help_url='EN:Module_Suppliers_Orders|FR:CommandeFournisseur|ES:Módulo_Pedidos_a_proveedores';
-llxHeader('',$langs->trans("Order"),$help_url);
+
+$title = $object->ref." - ".$langs->trans('Notes');
+$help_url = 'EN:Module_Suppliers_Orders|FR:CommandeFournisseur|ES:Módulo_Pedidos_a_proveedores';
+llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-supplier-order page-notes');
 
 $form = new Form($db);
 
 /* *************************************************************************** */
 /*                                                                             */
-/* Mode vue et edition                                                         */
+/* Card view and edit mode                                                       */
 /*                                                                             */
 /* *************************************************************************** */
 
-$now=dol_now();
+$now = dol_now();
 
-if ($id > 0 || ! empty($ref))
-{
-    if ($result >= 0)
-    {
-        $object->fetch_thirdparty();
+if ($id > 0 || !empty($ref)) {
+	if ($result >= 0) {
+		$object->fetch_thirdparty();
 
-        $author = new User($db);
-        $author->fetch($object->user_author_id);
+		$author = new User($db);
+		$author->fetch($object->user_author_id);
 
-        $head = ordersupplier_prepare_head($object);
+		$head = ordersupplier_prepare_head($object);
 
-        $title=$langs->trans("SupplierOrder");
-        dol_fiche_head($head, 'note', $title, -1, 'order');
+		$title = $langs->trans("SupplierOrder");
+		print dol_get_fiche_head($head, 'note', $title, -1, 'order');
 
 		// Supplier order card
 
-		$linkback = '<a href="'.DOL_URL_ROOT.'/fourn/commande/list.php'.(! empty($socid)?'?socid='.$socid:'').'">'.$langs->trans("BackToList").'</a>';
+		$linkback = '<a href="'.DOL_URL_ROOT.'/fourn/commande/list.php'.(!empty($socid) ? '?socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
 
-		$morehtmlref='<div class="refidno">';
+		$morehtmlref = '<div class="refidno">';
 		// Ref supplier
-		$morehtmlref.=$form->editfieldkey("RefSupplier", 'ref_supplier', $object->ref_supplier, $object, 0, 'string', '', 0, 1);
-		$morehtmlref.=$form->editfieldval("RefSupplier", 'ref_supplier', $object->ref_supplier, $object, 0, 'string', '', null, null, '', 1);
+		$morehtmlref .= $form->editfieldkey("RefSupplier", 'ref_supplier', $object->ref_supplier, $object, 0, 'string', '', 0, 1);
+		$morehtmlref .= $form->editfieldval("RefSupplier", 'ref_supplier', $object->ref_supplier, $object, 0, 'string', '', null, null, '', 1);
 		// Thirdparty
-		$morehtmlref.='<br>'.$langs->trans('ThirdParty') . ' : ' . $object->thirdparty->getNomUrl(1);
+		$morehtmlref .= '<br>'.$object->thirdparty->getNomUrl(1);
 		// Project
-		if (! empty($conf->projet->enabled))
-		{
-		    $langs->load("projects");
-		    $morehtmlref.='<br>'.$langs->trans('Project') . ' ';
-		    if ($user->rights->fournisseur->commande->creer)
-		    {
-		        if ($action != 'classify')
-		            //$morehtmlref.='<a href="' . $_SERVER['PHP_SELF'] . '?action=classify&amp;id=' . $object->id . '">' . img_edit($langs->transnoentitiesnoconv('SetProject')) . '</a> : ';
-		            $morehtmlref.=' : ';
-		        	if ($action == 'classify') {
-		                //$morehtmlref.=$form->form_project($_SERVER['PHP_SELF'] . '?id=' . $object->id, $object->socid, $object->fk_project, 'projectid', 0, 0, 1, 1);
-		                $morehtmlref.='<form method="post" action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'">';
-		                $morehtmlref.='<input type="hidden" name="action" value="classin">';
-		                $morehtmlref.='<input type="hidden" name="token" value="'.$_SESSION['newtoken'].'">';
-		                $morehtmlref.=$formproject->select_projects($object->socid, $object->fk_project, 'projectid', $maxlength, 0, 1, 0, 1, 0, 0, '', 1);
-		                $morehtmlref.='<input type="submit" class="button valignmiddle" value="'.$langs->trans("Modify").'">';
-		                $morehtmlref.='</form>';
-		            } else {
-		                $morehtmlref.=$form->form_project($_SERVER['PHP_SELF'] . '?id=' . $object->id, $object->socid, $object->fk_project, 'none', 0, 0, 0, 1);
-		            }
-		    } else {
-		        if (! empty($object->fk_project)) {
-		            $proj = new Project($db);
-		            $proj->fetch($object->fk_project);
-		            $morehtmlref.='<a href="'.DOL_URL_ROOT.'/projet/card.php?id=' . $object->fk_project . '" title="' . $langs->trans('ShowProject') . '">';
-		            $morehtmlref.=$proj->ref;
-		            $morehtmlref.='</a>';
-		        } else {
-		            $morehtmlref.='';
-		        }
-		    }
+		if (isModEnabled('project')) {
+			$langs->load("projects");
+			$morehtmlref .= '<br>';
+			if (0) {
+				$morehtmlref .= img_picto($langs->trans("Project"), 'project', 'class="pictofixedwidth"');
+				if ($action != 'classify' && $caneditproject) {  // Always false @phpstan-ignore-line
+					$morehtmlref .= '<a class="editfielda" href="'.$_SERVER['PHP_SELF'].'?action=classify&token='.newToken().'&id='.$object->id.'">'.img_edit($langs->transnoentitiesnoconv('SetProject')).'</a> ';
+				}
+				$morehtmlref .= $form->form_project($_SERVER['PHP_SELF'].'?id='.$object->id, (!getDolGlobalString('PROJECT_CAN_ALWAYS_LINK_TO_ALL_SUPPLIERS') ? $object->socid : -1), (string) $object->fk_project, ($action == 'classify' ? 'projectid' : 'none'), 0, 0, 0, 1, '', 'maxwidth300');
+			} else {
+				if (!empty($object->fk_project)) {
+					$proj = new Project($db);
+					$proj->fetch($object->fk_project);
+					$morehtmlref .= $proj->getNomUrl(1);
+					if ($proj->title) {
+						$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($proj->title).'</span>';
+					}
+				}
+			}
 		}
-		$morehtmlref.='</div>';
+		$morehtmlref .= '</div>';
 
 		dol_banner_tab($object, 'ref', $linkback, 1, 'ref', 'ref', $morehtmlref);
 
@@ -140,22 +154,18 @@ if ($id > 0 || ! empty($ref))
 		print '<div class="underbanner clearboth"></div>';
 
 
-		$cssclass="titlefield";
-        include DOL_DOCUMENT_ROOT.'/core/tpl/notes.tpl.php';
+		$cssclass = "titlefield";
+		include DOL_DOCUMENT_ROOT.'/core/tpl/notes.tpl.php';
 
-        print '</div>';
+		print '</div>';
 
-        dol_fiche_end();
-    }
-    else
-    {
-        /* Order not found */
-        $langs->load("errors");
-        print $langs->trans("ErrorRecordNotFound");
-    }
+		print dol_get_fiche_end();
+	} else {
+		/* Order not found */
+		recordNotFound('', 0);
+	}
 }
 
-
+// End of page
 llxFooter();
-
 $db->close();

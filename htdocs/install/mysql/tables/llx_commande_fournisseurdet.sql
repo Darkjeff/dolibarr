@@ -15,7 +15,7 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ===================================================================
 
@@ -25,19 +25,20 @@ create table llx_commande_fournisseurdet
   fk_commande                integer      NOT NULL,
   fk_parent_line             integer      NULL,
   fk_product                 integer,
-  ref                        varchar(50),               -- supplier product ref
+  ref                        varchar(128),              -- supplier product ref
   label                      varchar(255),              -- product label
   description                text,
   vat_src_code               varchar(10)  DEFAULT '',   -- Vat code used as source of vat fields. Not strict foreign key here.
-  tva_tx                     double(6,3)  DEFAULT 0,    -- taux tva
-  localtax1_tx               double(6,3)  DEFAULT 0,    -- localtax1 rate
+  tva_tx                     double(7,4)  DEFAULT 0,    -- taux tva
+  localtax1_tx               double(7,4)  DEFAULT 0,    -- localtax1 rate
   localtax1_type             varchar(10)  NULL,         -- localtax1 type
-  localtax2_tx               double(6,3)  DEFAULT 0,    -- localtax2 rate
+  localtax2_tx               double(7,4)  DEFAULT 0,    -- localtax2 rate
   localtax2_type             varchar(10)  NULL,         -- localtax2 type
   qty                        real,                      -- quantity
   remise_percent             real         DEFAULT 0,    -- pourcentage de remise
   remise                     real         DEFAULT 0,    -- montant de la remise
-  subprice                   double(24,8) DEFAULT 0,    -- prix unitaire
+  subprice                   double(24,8) DEFAULT 0,    -- unit price
+  subprice_ttc               double(24,8) DEFAULT 0,    -- unit price if price was entered including tax
   total_ht                   double(24,8) DEFAULT 0,    -- Total HT de la ligne toute quantite et incluant remise ligne et globale
   total_tva                  double(24,8) DEFAULT 0,    -- Total TVA de la ligne toute quantite et incluant remise ligne et globale
   total_localtax1            double(24,8) DEFAULT 0,    -- Total Local Tax 1
@@ -47,15 +48,17 @@ create table llx_commande_fournisseurdet
   date_start                 datetime     DEFAULT NULL, -- date debut si service
   date_end                   datetime     DEFAULT NULL, -- date fin si service
   info_bits	                 integer      DEFAULT 0,    -- TVA NPR ou non
-  special_code               integer      DEFAULT 0,    -- code pour les lignes speciales
+  special_code               integer      DEFAULT 0,    -- code for special lines
   rang                       integer      DEFAULT 0,
   import_key                 varchar(14),
   fk_unit                    integer      DEFAULT NULL,
-  
+
   fk_multicurrency           integer,
-  multicurrency_code         varchar(255),
+  multicurrency_code         varchar(3),
   multicurrency_subprice     double(24,8) DEFAULT 0,
+  multicurrency_subprice_ttc double(24,8) DEFAULT 0,
   multicurrency_total_ht     double(24,8) DEFAULT 0,
   multicurrency_total_tva    double(24,8) DEFAULT 0,
-  multicurrency_total_ttc    double(24,8) DEFAULT 0
+  multicurrency_total_ttc    double(24,8) DEFAULT 0,
+  extraparams				 varchar(255)				 -- to stock other parameters in json format
 )ENGINE=innodb;

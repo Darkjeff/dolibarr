@@ -1,5 +1,6 @@
 <?php
 /* Copyright (C) 2005-2010 Laurent Destailleur  <eldy@users.sourceforge.net>
+ * Copyright (C) 2024		Frédéric France			<frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,25 +13,53 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
- *     \file       htdocs/compta/bank/info.php
- *     \ingroup    banque
- *     \brief      Onglet info d'une ecriture bancaire
+ *    \file       htdocs/compta/bank/info.php
+ *    \ingroup    compta/bank
+ *    \brief      Info tab of bank statement
  */
 
-require('../../main.inc.php');
+
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+
+// Load Dolibarr environment
+require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
-require_once DOL_DOCUMENT_ROOT.'/compta/paiement/class/paiement.class.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';
+require_once DOL_DOCUMENT_ROOT.'/compta/paiement/class/paiement.class.php';
 
-$langs->load("banks");
-$langs->load("categories");
-$langs->load("companies");
 
-$id = GETPOST("rowid");
+// Load translation files required by the page
+$langs->loadLangs(array('banks', 'categories', 'companies'));
+
+
+// Get Parameters
+$id = GETPOSTINT("rowid");
+$accountid = (GETPOSTINT('id') ? GETPOSTINT('id') : GETPOSTINT('account'));
+$ref = GETPOST('ref', 'alpha');
+
+
+// Security check
+$fieldvalue = (!empty($id) ? $id : (!empty($ref) ? $ref : ''));
+
+$fieldtype = (!empty($ref) ? 'ref' : 'rowid');
+if ($user->socid) {
+	$socid = $user->socid;
+}
+
+$result = restrictedArea($user, 'banque', $accountid, 'bank_account');
+if (!$user->hasRight('banque', 'lire') && !$user->hasRight('banque', 'consolidate')) {
+	accessforbidden();
+}
 
 
 /*
@@ -44,19 +73,20 @@ $object->fetch($id);
 $object->info($id);
 
 
-$h=0;
+$h = 0;
 
-$head[$h][0] = DOL_URL_ROOT.'/compta/bank/ligne.php?rowid='.$id;
-$head[$h][1] = $langs->trans("Card");
+$head = array();
+$head[$h][0] = DOL_URL_ROOT.'/compta/bank/line.php?rowid='.$id;
+$head[$h][1] = $langs->trans("BankTransaction");
 $h++;
 
 $head[$h][0] = DOL_URL_ROOT.'/compta/bank/info.php?rowid='.$id;
 $head[$h][1] = $langs->trans("Info");
-$hselected = $h;
+$hselected = (string) $h;
 $h++;
 
 
-dol_fiche_head($head, $hselected, $langs->trans("LineRecord"), -1, 'account');
+print dol_get_fiche_head($head, $hselected, $langs->trans("LineRecord"), -1, 'accountline');
 
 $linkback = '<a href="'.DOL_URL_ROOT.'/compta/bank/bankentries_list.php?restore_lastsearch_values=1">'.$langs->trans("BackToList").'</a>';
 
@@ -72,5 +102,6 @@ print '</td></tr></table>';
 
 print '</div>';
 
+// End of page
 llxFooter();
 $db->close();

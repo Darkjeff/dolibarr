@@ -1,26 +1,23 @@
 # Dolibarr language file - Source file is en_US - help
 CommunitySupport=Forum/Wiki podpora
 EMailSupport=E-mail podpora
-RemoteControlSupport=Direktna Online podpora na daljavo v realnem času
+RemoteControlSupport=Spletna podpora v realnem času/na daljavo
 OtherSupport=Ostale podpore
 ToSeeListOfAvailableRessources=Za kontakt/ogled virov, ki so na voljo:
-HelpCenter=Center za pomoč
-DolibarrHelpCenter=Dolibarr center za pomoč in podporo
-ToGoBackToDolibarr=Sicer kliknite <a href="%s">tukaj za vstop v Dolibarr</a>
-TypeOfSupport=Vir za podporo
+HelpCenter=Center pomoči
+DolibarrHelpCenter=Center za pomoč in podporo Dolibarr
+ToGoBackToDolibarr=V nasprotnem primeru <a href="%s"> kliknite tukaj, če želite še naprej uporabljati Dolibarr </a> .
+TypeOfSupport=Vrsta podpore
 TypeSupportCommunauty=Skupnost (brezplačno)
 TypeSupportCommercial=Komercialni
 TypeOfHelp=Tip
-NeedHelpCenter=Need help or support?
+NeedHelpCenter=Need support?
 Efficiency=Učinkovitost
 TypeHelpOnly=Samo pomoč
 TypeHelpDev=Pomoč+razvoj
-TypeHelpDevForm=Pomoč+razvoj+oblikovanje
-ToGetHelpGoOnSparkAngels1=Nekatera podjetja lahko zagotovijo hitro (včasih takojšnjo) in učinkovitejšo online podporo z direktnim dostopom do vašega računalnika. Take pomočnike lahko najdete na <b>%s</b> spletni strani:
-ToGetHelpGoOnSparkAngels3=Lahko si ogledate tudi seznam vseh Dolibarr inštruktorjev, ki so na voljo; kliknite na gumb
-ToGetHelpGoOnSparkAngels2=Včasih v trenutku vašega iskanja ni na voljo nobenega podjetja, zato lahko spremenite filter na "all availability". Tako boste lahko poslali več zahtevkov.
-BackToHelpCenter=Sicer kliknite <a href="%s">tukaj za prehod nazaj na domačo stran za pomoč</a>.
-LinkToGoldMember=Lahko pokličete enega of inštruktorjev, ki jih je Dolibarr izbral vnaprej za vaš jezik (%s) s kliko na ustrezno ikono (status in maksimalna cena se posodobita avtomatsko):
+TypeHelpDevForm=Pomoč+Razvoj+Usposabljanje
+BackToHelpCenter=V nasprotnem primeru se <a href="%s"> vrnite na domačo stran centra za pomoč </a> .
+LinkToGoldMember=Pokličete lahko enega od trenerjev, ki jih je Dolibarr vnaprej izbral za vaš jezik (%s), tako da kliknete njihov pripomoček (stanje in najvišja cena se samodejno posodobita):
 PossibleLanguages=Podprti jeziki
-SubscribeToFoundation=POmagajte projektu Dolibarr z včlanitvijo v združenje
-SeeOfficalSupport=Za uradno Dolibarr podporo v vašem jeziku: <br><b><a href="%s" target="_blank">%s</a></b>
+SubscribeToFoundation=Pomagajte projektu Dolibarr, naročite se na fundacijo
+SeeOfficalSupport=Za uradno podporo Dolibarr v vašem jeziku: <br> <b> <a href="%s" target="_blank" rel="noopener noreferrer"> %s </a> </b>

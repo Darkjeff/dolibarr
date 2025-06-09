@@ -12,15 +12,19 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ===================================================================
 
+-- TODO This tables is a duplicate with table llx_prelevement_demande.
+-- TODO Move the field status into table llx_prelevement_demande and remove this table.
 create table llx_prelevement_lignes
 (
   rowid               integer AUTO_INCREMENT PRIMARY KEY,
   fk_prelevement_bons integer,
   fk_soc              integer NOT NULL,
+  fk_user             integer NULL,
+
   statut              smallint DEFAULT 0,
 
   client_nom          varchar(255),
@@ -30,6 +34,6 @@ create table llx_prelevement_lignes
   number              varchar(255),
   cle_rib             varchar(5),
 
-  note                text
-
+  note                text,
+  tms             	  timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 )ENGINE=innodb;

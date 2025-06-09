@@ -1,7 +1,8 @@
 <?php
 /* Copyright (C) 2013 Florian Henry		<florian.henry@open-concept.pro>
  * Copyright (C) 2013 Juanjo Menent		<jmenent@2byte.es>
- * Copyright (C) 2015 Frederic France	<frederic.france@free.fr>
+ * Copyright (C) 2015-2025  Frédéric France	<frederic.france@free.fr>
+ * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,7 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -31,17 +32,10 @@ include_once DOL_DOCUMENT_ROOT.'/core/boxes/modules_boxes.php';
  */
 class box_ficheinter extends ModeleBoxes
 {
-	var $boxcode="ficheinter";
-	var $boximg="object_intervention";
-	var $boxlabel="BoxFicheInter";
-	var $depends = array("ficheinter");	// conf->contrat->enabled
-
-	var $db;
-	var $param;
-
-	var $info_box_head = array();
-	var $info_box_contents = array();
-
+	public $boxcode = "ficheinter";
+	public $boximg = "object_intervention";
+	public $boxlabel = "BoxFicheInter";
+	public $depends = array("ficheinter"); // conf->contrat->enabled
 
 	/**
 	 *  Constructor
@@ -49,13 +43,15 @@ class box_ficheinter extends ModeleBoxes
 	 *  @param  DoliDB  $db         Database handler
 	 *  @param  string  $param      More parameters
 	 */
-	function __construct($db,$param)
+	public function __construct($db, $param)
 	{
-	    global $user;
+		global $user;
 
-	    $this->db=$db;
+		$this->db = $db;
 
-	    $this->hidden=! ($user->rights->ficheinter->lire);
+		$this->hidden = !($user->hasRight('ficheinter', 'lire'));
+		$this->urltoaddentry = DOL_URL_ROOT.'/fichinter/card.php?action=create';
+		$this->msgNoRecords = 'NoRecordedInterventions';
 	}
 
 	/**
@@ -63,109 +59,135 @@ class box_ficheinter extends ModeleBoxes
 	 *
 	 *  @param	int		$max        Maximum number of records to load
 	 *  @return	void
-	*/
-	function loadBox($max=10)
+	 */
+	public function loadBox($max = 10)
 	{
-		global $user, $langs, $db, $conf;
+		global $user, $langs, $conf;
 
-		$this->max=$max;
+		$this->max = $max;
 
 		include_once DOL_DOCUMENT_ROOT.'/fichinter/class/fichinter.class.php';
-		$ficheinterstatic=new Fichinter($db);
+		$ficheinterstatic = new Fichinter($this->db);
+		$thirdpartystatic = new Societe($this->db);
 
-		$this->info_box_head = array('text' => $langs->trans("BoxTitleLastFicheInter",$max));
+		$this->info_box_head = array(
+			'text' => $langs->trans("BoxTitleLastFicheInter", $max).'<a class="paddingleft" href="'.DOL_URL_ROOT.'/fichinter/list.php?sortfield=f.tms&sortorder=DESC"><span class="badge">...</span></a>'
+		);
 
-		if (! empty($user->rights->ficheinter->lire))
-		{
-			$sql = "SELECT f.rowid, f.ref, f.fk_soc, f.fk_statut,";
-			$sql.= " f.datec,";
-			$sql.= " f.date_valid as datev,";
-			$sql.= " f.tms as datem,";
-			$sql.= " s.nom as name, s.rowid as socid, s.client";
-			$sql.= " FROM ".MAIN_DB_PREFIX."societe as s";
-			if (! $user->rights->societe->client->voir) $sql.= ", ".MAIN_DB_PREFIX."societe_commerciaux as sc";
-			$sql.= ", ".MAIN_DB_PREFIX."fichinter as f";
-			$sql.= " WHERE f.fk_soc = s.rowid ";
-			$sql.= " AND f.entity = ".$conf->entity;
-			if (! $user->rights->societe->client->voir && !$user->societe_id) $sql .= " AND s.rowid = sc.fk_soc AND sc.fk_user = " .$user->id;
-			if($user->societe_id)	$sql.= " AND s.rowid = ".$user->societe_id;
-			$sql.= " ORDER BY f.tms DESC";
-			$sql.= $db->plimit($max, 0);
+		if ($user->hasRight('ficheinter', 'lire')) {
+			$sql = "SELECT f.rowid, f.ref, f.fk_soc, f.fk_statut as status";
+			$sql .= ", f.datec";
+			$sql .= ", f.date_valid as datev";
+			$sql .= ", f.tms as datem";
+			$sql .= ", s.rowid as socid, s.nom as name, s.name_alias";
+			$sql .= ", s.code_client, s.code_compta, s.client";
+			$sql .= ", s.logo, s.email, s.entity";
+			$sql .= " FROM ".MAIN_DB_PREFIX."societe as s";
+			if (empty($user->socid) && !$user->hasRight('societe', 'client', 'voir')) {
+				$sql .= ", ".MAIN_DB_PREFIX."societe_commerciaux as sc";
+			}
+			$sql .= ", ".MAIN_DB_PREFIX."fichinter as f";
+			$sql .= " WHERE f.fk_soc = s.rowid ";
+			$sql .= " AND f.entity = ".$conf->entity;
+			if (empty($user->socid) && !$user->hasRight('societe', 'client', 'voir')) {
+				$sql .= " AND s.rowid = sc.fk_soc AND sc.fk_user = ".((int) $user->id);
+			}
+			if ($user->socid) {
+				$sql .= " AND s.rowid = ".((int) $user->socid);
+			}
+			$sql .= " ORDER BY f.tms DESC";
+			$sql .= $this->db->plimit($max, 0);
 
 			dol_syslog(get_class($this).'::loadBox', LOG_DEBUG);
-			$resql = $db->query($sql);
-			if ($resql)
-			{
-				$num = $db->num_rows($resql);
-				$now=dol_now();
+			$resql = $this->db->query($sql);
+			if ($resql) {
+				$num = $this->db->num_rows($resql);
+				$now = dol_now();
 
 				$i = 0;
 
-				while ($i < $num)
-				{
-					$objp = $db->fetch_object($resql);
-					$datec=$db->jdate($objp->datec);
+				while ($i < $num) {
+					$objp = $this->db->fetch_object($resql);
+					$datec = $this->db->jdate($objp->datec);
+					$datem = $this->db->jdate($objp->datem);
 
-					$ficheinterstatic->statut=$objp->fk_statut;
-					$ficheinterstatic->id=$objp->rowid;
-					$ficheinterstatic->ref=$objp->ref;
+					$ficheinterstatic->statut = $objp->status;	// deprecated
+					$ficheinterstatic->status = $objp->status;
+					$ficheinterstatic->id = $objp->rowid;
+					$ficheinterstatic->ref = $objp->ref;
 
-					$this->info_box_contents[$i][] = array('td' => '',
-					'text' => $ficheinterstatic->getNomUrl(1),
-					'asis' => 1
+					$thirdpartystatic->id = $objp->socid;
+					$thirdpartystatic->name = $objp->name;
+					//$thirdpartystatic->name_alias = $objp->name_alias;
+					$thirdpartystatic->code_client = $objp->code_client;
+					$thirdpartystatic->code_compta = $objp->code_compta;
+					$thirdpartystatic->code_compta_client = $objp->code_compta;
+					$thirdpartystatic->client = $objp->client;
+					$thirdpartystatic->logo = $objp->logo;
+					$thirdpartystatic->email = $objp->email;
+					$thirdpartystatic->entity = $objp->entity;
+
+					$this->info_box_contents[$i][] = array(
+						'td' => 'class="nowraponall"',
+						'text' => $ficheinterstatic->getNomUrl(1),
+						'asis' => 1,
 					);
 
-					$this->info_box_contents[$i][] = array('td' => 'align="left" width="16"',
-					'logo' => 'company',
-					'url' => DOL_URL_ROOT."/comm/card.php?socid=".$objp->socid);
+					$this->info_box_contents[$i][] = array(
+						'td' => 'class="tdoverflowmax150"',
+						'text' => $thirdpartystatic->getNomUrl(1),
+						'asis' => 1,
+					);
 
-					$this->info_box_contents[$i][] = array('td' => '',
-					'text' => dol_trunc($objp->name,40),
-					'url' => DOL_URL_ROOT."/comm/card.php?socid=".$objp->socid);
+					$this->info_box_contents[$i][] = array(
+						'td' => 'class="center nowraponall" title="'.dol_escape_htmltag($langs->trans("DateModification").': '.dol_print_date($datem, 'dayhour', 'tzuserrel')).'"',
+						'text' => dol_print_date($datem, 'day', 'tzuserrel'),
+					);
 
-					$this->info_box_contents[$i][] = array('td' => 'class="right"',
-					'text' => dol_print_date($datec,'day'));
-
-					$this->info_box_contents[$i][] = array('td' => 'align="right" class="nowrap"',
-					'text' => $ficheinterstatic->getLibStatut(6),
-					'asis'=>1
+					$this->info_box_contents[$i][] = array(
+						'td' => 'class="nowrap right"',
+						'text' => $ficheinterstatic->getLibStatut(3),
+						'asis' => 1,
 					);
 
 					$i++;
 				}
 
-				if ($num==0) $this->info_box_contents[$i][] = array('td' => 'align="center"','text'=>$langs->trans("NoRecordedInterventions"));
+				// if ($num == 0) {
+				// 	$this->info_box_contents[$i][0] = array(
+				// 	'td' => 'class="center"',
+				// 		'text' => '<span class="opacitymedium">'.$langs->trans("NoRecordedInterventions").'</span>'
+				// 	);
+				// }
 
-				$db->free($resql);
+				$this->db->free($resql);
+			} else {
+				$this->info_box_contents[0][0] = array(
+					'td' => '',
+					'maxlength' => 500,
+					'text' => ($this->db->error().' sql='.$sql),
+				);
 			}
-			else
-			{
-				$this->info_box_contents[0][] = array(  'td' => '',
-				'maxlength'=>500,
-				'text' => ($db->error().' sql='.$sql));
-			}
-		}
-		else
-		{
-			$this->info_box_contents[0][] = array(
-			    'td' => 'align="left" class="nohover opacitymedium"',
-			    'text' => $langs->trans("ReadPermissionNotAllowed")
+		} else {
+			$this->info_box_contents[0][0] = array(
+				'td' => 'class="nohover left"',
+				'text' => '<span class="opacitymedium">'.$langs->trans("ReadPermissionNotAllowed").'</span>'
 			);
 		}
 	}
 
+
+
 	/**
-	 *	Method to show box
+	 *	Method to show box.  Called when the box needs to be displayed.
 	 *
-	 *	@param	array	$head       Array with properties of box title
-	 *	@param  array	$contents   Array with properties of box lines
-	 *  @param	int		$nooutput	No print, only return string
+	 *	@param	?array<array{text?:string,sublink?:string,subtext?:string,subpicto?:?string,picto?:string,nbcol?:int,limit?:int,subclass?:string,graph?:int<0,1>,target?:string}>   $head       Array with properties of box title
+	 *	@param	?array<array{tr?:string,td?:string,target?:string,text?:string,text2?:string,textnoformat?:string,tooltip?:string,logo?:string,url?:string,maxlength?:int,asis?:int<0,1>}>   $contents   Array with properties of box lines
+	 *	@param	int<0,1>	$nooutput	No print, only return string
 	 *	@return	string
 	 */
-    function showBox($head = null, $contents = null, $nooutput=0)
-    {
+	public function showBox($head = null, $contents = null, $nooutput = 0)
+	{
 		return parent::showBox($this->info_box_head, $this->info_box_contents, $nooutput);
 	}
-
 }
-

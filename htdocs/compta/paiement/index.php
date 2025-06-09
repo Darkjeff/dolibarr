@@ -1,5 +1,6 @@
 <?php
 /* Copyright (C) 2003 Rodolphe Quiedeville <rodolphe@quiedeville.org>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,15 +13,25 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  *
  */
 
+// Load Dolibarr environment
 require '../../main.inc.php';
 
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+
 // Security check
-if (!$user->admin && $user->societe_id > 0)
-  accessforbidden();
+if (!$user->admin && $user->socid > 0) {
+	accessforbidden();
+}
 
 
 /*
@@ -31,5 +42,6 @@ llxHeader();
 
 print load_fiche_titre("Payments");
 
+// End of page
 llxFooter();
 $db->close();

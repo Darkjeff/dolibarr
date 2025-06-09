@@ -1,5 +1,7 @@
 # Generated binaries
 /build/*.zip
+/bin/*.zip
+/bin
 # Doxygen generated documentation
 /build/doxygen/doxygen_warnings.log
 /doc/code/doxygen
@@ -14,3 +16,7 @@
 /.settings/
 /.buildpath
 /.project
+# Other
+*.back
+/.editorconfig
+/.gitattributes

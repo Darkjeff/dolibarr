@@ -1,5 +1,7 @@
 <?php
 /* Copyright (C) 2010 Laurent Destailleur  <eldy@users.sourceforge.net>
+ * Copyright (C) 2023 Alexandre Janniaux   <alexandre.janniaux@gmail.com>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,8 +14,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * or see http://www.gnu.org/
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * or see https://www.gnu.org/
  */
 
 /**
@@ -28,18 +30,17 @@ global $conf,$user,$langs,$db;
 //require_once 'PHPUnit/Autoload.php';
 require_once dirname(__FILE__).'/../../htdocs/master.inc.php';
 require_once dirname(__FILE__).'/../../htdocs/core/lib/date.lib.php';
-require_once(NUSOAP_PATH.'/nusoap.php');        // Include SOAP
+require_once NUSOAP_PATH.'/nusoap.php';        // Include SOAP
+require_once dirname(__FILE__).'/CommonClassTest.class.php';
 
-
-if (empty($user->id))
-{
+if (empty($user->id)) {
 	print "Load permissions for admin user nb 1\n";
 	$user->fetch(1);
-	$user->getrights();
+	$user->loadRights();
 }
-$conf->global->MAIN_DISABLE_ALL_MAILS=1;
+$conf->global->MAIN_DISABLE_ALL_MAILS = 1;
 
-$conf->global->MAIN_UMASK='0666';
+$conf->global->MAIN_UMASK = '0666';
 
 
 /**
@@ -49,40 +50,41 @@ $conf->global->MAIN_UMASK='0666';
  * @backupStaticAttributes enabled
  * @remarks	backupGlobals must be disabled to have db,conf,user and lang not erased.
  */
-class WebservicesInvoicesTest extends PHPUnit_Framework_TestCase
+class WebservicesInvoicesTest extends CommonClassTest
 {
-	protected $savconf;
-	protected $savuser;
-	protected $savlangs;
-	protected $savdb;
 	protected $soapclient;
 
 	private static $socid;
 
 	protected $ns = 'http://www.dolibarr.org/ns/';
 
+	protected $pass = 'admin';
+
+
 	/**
 	 * Constructor
 	 * We save global variables into local variables
 	 *
-	 * @return DateLibTest
+	 * @param 	string	$name		Name
+	 * @return WebservicesInvoicesTest
 	 */
-	function __construct()
+	public function __construct($name = '')
 	{
+		parent::__construct($name);
+
 		//$this->sharedFixture
 		global $conf,$user,$langs,$db;
-		$this->savconf=$conf;
-		$this->savuser=$user;
-		$this->savlangs=$langs;
-		$this->savdb=$db;
+		$this->savconf = $conf;
+		$this->savuser = $user;
+		$this->savlangs = $langs;
+		$this->savdb = $db;
 
 		// Set the WebService URL
 		$WS_DOL_URL = DOL_MAIN_URL_ROOT.'/webservices/server_invoice.php';
 		print __METHOD__." create nusoap_client for URL=".$WS_DOL_URL."\n";
 		$this->soapclient = new nusoap_client($WS_DOL_URL);
-		if ($this->soapclient)
-		{
-			$this->soapclient->soap_defencoding='UTF-8';
+		if ($this->soapclient) {
+			$this->soapclient->soap_defencoding = 'UTF-8';
 			$this->soapclient->decodeUTF8(false);
 		}
 
@@ -91,9 +93,16 @@ class WebservicesInvoicesTest extends PHPUnit_Framework_TestCase
 		print "\n";
 	}
 
-    public static function setUpBeforeClass()
-    {
-        global $conf,$user,$langs,$db;
+	/**
+	 * setUpBeforeClass
+	 *
+	 * @return void
+	 */
+	public static function setUpBeforeClass(): void
+	{
+		global $conf,$user,$langs,$db;
+
+		$now = dol_now();
 
 		// create a third_party, needed to create an invoice
 		//
@@ -108,86 +117,57 @@ class WebservicesInvoicesTest extends PHPUnit_Framework_TestCase
 		// transaction commit. So if the invoice is created in the same
 		// transaction than the third party, the FK constraint fails.
 		// See this post for more detail: http://stackoverflow.com/a/5014744/5187108
-		$societe=new Societe($db);
-		$societe->ref='';
-		$societe->name='name';
-		$societe->ref_ext='ref-phpunit';
-		$societe->status=1;
-		$societe->client=1;
-		$societe->code_client='CU0901-1234';
-		$societe->code_fournisseur='SU0901-1234';
-		$societe->fournisseur=0;
-		$societe->date_creation=$now;
-		$societe->tva_assuj=0;
-		$societe->particulier=0;
+		$societe = new Societe($db);
+		$societe->ref = '';
+		$societe->name = 'name';
+		$societe->ref_ext = 'ref-phpunit';
+		$societe->status = 1;
+		$societe->client = 1;
+		$societe->code_client = 'CU0901-1234';
+		$societe->code_fournisseur = 'SU0901-1234';
+		$societe->fournisseur = 0;
+		$societe->date_creation = $now;
+		$societe->tva_assuj = 0;
+		$societe->particulier = 0;
 
 		$societe->create($user);
+		if (empty($societe->id)) {
+			// Create failed, may be the thirdparty already exists, we fetch it
+			$societe->fetch(0, 'name');
+		}
 
 		self::$socid = $societe->id;
-		print __METHOD__." societe created id=".$societe->id."\n";
+
+		print __METHOD__." societe created or found with id=".$societe->id."\n";
 
 		$db->begin();	// This is to have all actions inside a transaction even if test launched without suite.
 
-        print __METHOD__."\n";
-    }
-
-    public static function tearDownAfterClass()
-    {
-    	global $conf,$user,$langs,$db;
-		$db->rollback();
-
 		print __METHOD__."\n";
-    }
+	}
+
 
 	/**
-	 * Init phpunit tests
+	 * testWSInvoicesCreateInvoice
 	 *
-	 * @return	void
+	 * @return	int		invoice created
 	 */
-    protected function setUp()
-    {
-    	global $conf,$user,$langs,$db;
-		$conf=$this->savconf;
-		$user=$this->savuser;
-		$langs=$this->savlangs;
-		$db=$this->savdb;
+	public function testWSInvoicesCreateInvoice()
+	{
+		global $conf,$user,$langs,$db;
+		$conf = $this->savconf;
+		$user = $this->savuser;
+		$langs = $this->savlangs;
+		$db = $this->savdb;
 
-		print __METHOD__."\n";
-    }
+		$WS_METHOD  = 'createInvoice';
 
-	/**
-	 * End phpunit tests
-	 *
-	 * @return	void
-	 */
-    protected function tearDown()
-    {
-    	print __METHOD__."\n";
-    }
-
-
-    /**
-     * testWSInvoicesCreateInvoice
-     *
-     * @return	int		invoice created
-     */
-    public function testWSInvoicesCreateInvoice()
-    {
-    	global $conf,$user,$langs,$db;
-    	$conf=$this->savconf;
-    	$user=$this->savuser;
-    	$langs=$this->savlangs;
-    	$db=$this->savdb;
-
-    	$WS_METHOD  = 'createInvoice';
-
-    	$body = array (
-    			"id" => NULL,
-				"ref" => NULL,
+		$body = array(
+				"id" => null,
+				"ref" => null,
 				"ref_ext" => "ref-phpunit-2",
 				"thirdparty_id" => self::$socid,
-				"fk_user_author" => NULL,
-				"fk_user_valid" => NULL,
+				"fk_user_author" => null,
+				"fk_user_valid" => null,
 				"date" => "2015-04-19 20:16:53",
 				"date_due" => "",
 				"date_creation" => "",
@@ -201,11 +181,11 @@ class WebservicesInvoicesTest extends PHPUnit_Framework_TestCase
 				"note_private" => "Synchronised from Prestashop",
 				"note_public" => "",
 				"status" => "1",
-				"close_code" => NULL ,
-				"close_note" => NULL,
-				"project_id" => NULL,
+				"close_code" => null ,
+				"close_note" => null,
+				"project_id" => null,
 				"lines" => array(
-					array("id" => NULL,
+					array("id" => null,
 					"type" => 0,
 					"desc" => "Horloge Vinyle Serge",
 					"vat_rate" => 20,
@@ -223,128 +203,125 @@ class WebservicesInvoicesTest extends PHPUnit_Framework_TestCase
 					"product_desc" => "" ))
 					);
 
-    	// Call the WebService method and store its result in $result.
-    	$authentication=array(
-    	'dolibarrkey'=>$conf->global->WEBSERVICES_KEY,
-    	'sourceapplication'=>'DEMO',
-    	'login'=>'admin',
-    	'password'=>'admin',
-    	'entity'=>'');
+		// Call the WebService method and store its result in $result.
+		$authentication = array(
+		'dolibarrkey' => getDolGlobalString('WEBSERVICES_KEY'),
+		'sourceapplication' => 'DEMO',
+		'login' => 'admin',
+		'password' => $this->pass,
+		'entity' => '');
 
-    	// Test URL
-    	$result='';
-    	$parameters = array('authentication'=>$authentication,'invoice'=>$body);
-    	print __METHOD__." call method ".$WS_METHOD."\n";
-    	try {
-    		$result = $this->soapclient->call($WS_METHOD,$parameters,$this->ns,'');
-    	}
-    	catch(SoapFault $exception)
-    	{
-    		echo $exception;
-    		$result=0;
-    	}
-    	if (! $result || ! empty($result['faultstring']))
-    	{
-    		//var_dump($soapclient);
-    		print $this->soapclient->error_str;
-    		print "\n<br>\n";
-    		print $this->soapclient->request;
-    		print "\n<br>\n";
-    		print $this->soapclient->response;
-    		print "\n";
-    	}
+		// Test URL
+		$result = '';
+		$parameters = array('authentication' => $authentication,'invoice' => $body);
+		print __METHOD__." call method ".$WS_METHOD."\n";
+		try {
+			$result = $this->soapclient->call($WS_METHOD, $parameters, $this->ns, '');
+		} catch (SoapFault $exception) {
+			echo $exception;
+			$result = 0;
+		}
+		if (! $result || !empty($result['faultstring'])) {
+			//var_dump($soapclient);
+			print $this->soapclient->error_str;
+			print "\n<br>\n";
+			print $this->soapclient->request;
+			print "\n<br>\n";
+			print $this->soapclient->response;
+			print "\n";
+		}
 
-    	print __METHOD__." result=".$result['result']['result_code']."\n";
-    	$this->assertEquals('OK',$result['result']['result_code']);
-    	$this->assertEquals('ref-phpunit-2', $result['ref_ext']);
+		print __METHOD__." result=".$result['result']['result_code']." ".$result['result']['result_label']."\n";
 
+		$resultcode = empty($result['result']['result_code']) ? 'KO' : $result['result']['result_code'];
 
-    	return $result;
-    }
-
-    /**
-     * testWSInvoicesGetInvoiceByRefExt
-     *
-     * Retrieve an invoice using ref_ext
-     * @depends testWSInvoicesCreateInvoice
-     *
-     * @param	array	$result		Invoice created by create method
-     * @return	array				Invoice
-     */
-    public function testWSInvoicesGetInvoiceByRefExt($result)
-    {
-    	global $conf,$user,$langs,$db;
-    	$conf=$this->savconf;
-    	$user=$this->savuser;
-    	$langs=$this->savlangs;
-    	$db=$this->savdb;
-
-    	$WS_METHOD  = 'getInvoice';
-
-    	// Call the WebService method and store its result in $result.
-    	$authentication=array(
-    	'dolibarrkey'=>$conf->global->WEBSERVICES_KEY,
-    	'sourceapplication'=>'DEMO',
-    	'login'=>'admin',
-    	'password'=>'admin',
-    	'entity'=>'');
-
-    	// Test URL
-    	$result='';
-    	$parameters = array('authentication'=>$authentication,'id'=>NULL,'ref'=>NULL,'ref_ext'=>'ref-phpunit-2');
-    	print __METHOD__." call method ".$WS_METHOD."\n";
-    	try {
-    		$result = $this->soapclient->call($WS_METHOD,$parameters,$this->ns,'');
-    	}
-    	catch(SoapFault $exception)
-    	{
-    		echo $exception;
-    		$result=0;
-    	}
-    	if (! $result || ! empty($result['faultstring']))
-    	{
-    		print $this->soapclient->error_str;
-    		print "\n<br>\n";
-    		print $this->soapclient->request;
-    		print "\n<br>\n";
-    		print $this->soapclient->response;
-    		print "\n";
-    	}
-    	print __METHOD__." result=".$result['result']['result_code']."\n";
-    	$this->assertEquals('OK',$result['result']['result_code']);
-    	$this->assertEquals('ref-phpunit-2', $result['invoice']['ref_ext']);
+		$this->assertEquals('OK', $resultcode);
+		$this->assertEquals('ref-phpunit-2', $result['ref_ext']);
 
 
-    	return $result;
-    }
+		return $result;
+	}
 
-    /**
-     * testWSInvoicesUpdateInvoiceByRefExt
-     *
-     * Update an invoice using ref_ext
-     * @depends testWSInvoicesCreateInvoice
-     *
-     * @param	array	$result		invoice created by create method
-     * @return	array 				Invoice
-     */
-    public function testWSInvoicesUpdateInvoiceByRefExt($result)
-    {
-    	global $conf,$user,$langs,$db;
-    	$conf=$this->savconf;
-    	$user=$this->savuser;
-    	$langs=$this->savlangs;
-    	$db=$this->savdb;
+	/**
+	 * testWSInvoicesGetInvoiceByRefExt
+	 *
+	 * Retrieve an invoice using ref_ext
+	 * @depends testWSInvoicesCreateInvoice
+	 *
+	 * @param	array	$result		Invoice created by create method
+	 * @return	array				Invoice
+	 */
+	public function testWSInvoicesGetInvoiceByRefExt($result)
+	{
+		global $conf,$user,$langs,$db;
+		$conf = $this->savconf;
+		$user = $this->savuser;
+		$langs = $this->savlangs;
+		$db = $this->savdb;
 
-    	$WS_METHOD  = 'updateInvoice';
+		$WS_METHOD  = 'getInvoice';
 
-    	// update status to 2
-    	$body = array (
-    		"id" => NULL,
-			"ref" => NULL,
+		// Call the WebService method and store its result in $result.
+		$authentication = array(
+		'dolibarrkey' => getDolGlobalString('WEBSERVICES_KEY'),
+		'sourceapplication' => 'DEMO',
+		'login' => 'admin',
+		'password' => $this->pass,
+		'entity' => '');
+
+		// Test URL
+		$result = '';
+		$parameters = array('authentication' => $authentication, 'id' => null, 'ref' => null, 'ref_ext' => 'ref-phpunit-2');
+		print __METHOD__." call method ".$WS_METHOD."\n";
+		try {
+			$result = $this->soapclient->call($WS_METHOD, $parameters, $this->ns, '');
+		} catch (SoapFault $exception) {
+			echo $exception;
+			$result = 0;
+		}
+		if (! $result || !empty($result['faultstring'])) {
+			print $this->soapclient->error_str;
+			print "\n<br>\n";
+			print $this->soapclient->request;
+			print "\n<br>\n";
+			print $this->soapclient->response;
+			print "\n";
+		}
+		print __METHOD__." result=".$result['result']['result_code']."\n";
+		$this->assertEquals('OK', $result['result']['result_code']);
+		$this->assertEquals('ref-phpunit-2', $result['invoice']['ref_ext']);
+
+
+		return $result;
+	}
+
+	/**
+	 * testWSInvoicesUpdateInvoiceByRefExt
+	 *
+	 * Update an invoice using ref_ext
+	 * @depends testWSInvoicesCreateInvoice
+	 *
+	 * @param	array	$result		invoice created by create method
+	 * @return	array 				Invoice
+	 */
+	public function testWSInvoicesUpdateInvoiceByRefExt($result)
+	{
+		global $conf,$user,$langs,$db;
+		$conf = $this->savconf;
+		$user = $this->savuser;
+		$langs = $this->savlangs;
+		$db = $this->savdb;
+
+		$WS_METHOD  = 'updateInvoice';
+
+		// update status to 2
+		$body = array(
+			"id" => null,
+			"ref" => null,
 			"ref_ext" => "ref-phpunit-2",
 			"thirdparty_id" => self::$socid,
-			"fk_user_author" => NULL,
-			"fk_user_valid" => NULL,
+			"fk_user_author" => null,
+			"fk_user_valid" => null,
 			"date" => "2015-04-19 20:16:53",
 			"date_due" => "",
 			"date_creation" => "",
@@ -358,12 +335,12 @@ class WebservicesInvoicesTest extends PHPUnit_Framework_TestCase
 			"note_private" => "Synchronised from Prestashop",
 			"note_public" => "",
 			"status" => "2",
-			"close_code" => NULL ,
-			"close_note" => NULL,
-			"project_id" => NULL,
+			"close_code" => null ,
+			"close_note" => null,
+			"project_id" => null,
 			"lines"  => array(
 				array(
-				"id"  => NULL,
+				"id"  => null,
 				"type" => 0,
 				"desc" => "Horloge Vinyle Serge",
 				"vat_rate" => 20,
@@ -381,42 +358,38 @@ class WebservicesInvoicesTest extends PHPUnit_Framework_TestCase
 				"product_desc" => "" ))
 			);
 
-    	// Call the WebService method and store its result in $result.
-    	$authentication=array(
-    	'dolibarrkey'=>$conf->global->WEBSERVICES_KEY,
-    	'sourceapplication'=>'DEMO',
-    	'login'=>'admin',
-    	'password'=>'admin',
-    	'entity'=>'');
+		// Call the WebService method and store its result in $result.
+		$authentication = array(
+		'dolibarrkey' => getDolGlobalString('WEBSERVICES_KEY'),
+		'sourceapplication' => 'DEMO',
+		'login' => 'admin',
+		'password' => $this->pass,
+		'entity' => '');
 
-    	// Test URL
-    	$result='';
-    	$parameters = array('authentication'=>$authentication,'invoice'=>$body);
-    	print __METHOD__." call method ".$WS_METHOD."\n";
-    	try {
-    		$result = $this->soapclient->call($WS_METHOD,$parameters,$this->ns,'');
-    	}
-    	catch(SoapFault $exception)
-    	{
-    		echo $exception;
-    		$result=0;
-    	}
-    	if (! $result || ! empty($result['faultstring']))
-    	{
-    		print $this->soapclient->error_str;
-    		print "\n<br>\n";
-    		print $this->soapclient->request;
-    		print "\n<br>\n";
-    		print $this->soapclient->response;
-    		print "\n";
-    	}
+		// Test URL
+		$result = '';
+		$parameters = array('authentication' => $authentication,'invoice' => $body);
+		print __METHOD__." call method ".$WS_METHOD."\n";
+		try {
+			$result = $this->soapclient->call($WS_METHOD, $parameters, $this->ns, '');
+		} catch (SoapFault $exception) {
+			echo $exception;
+			$result = 0;
+		}
+		if (! $result || !empty($result['faultstring'])) {
+			print 'Error: '.$this->soapclient->error_str;
+			print "\n<br>\n";
+			print $this->soapclient->request;
+			print "\n<br>\n";
+			print $this->soapclient->response;
+			print "\n";
+		}
 
-    	print __METHOD__." result=".$result['result']['result_code'].$result['result']['result_label']."\n";
-    	$this->assertEquals('OK',$result['result']['result_code']);
-    	$this->assertEquals('ref-phpunit-2', $result['ref_ext']);
+		print __METHOD__." count(result)=".(is_array($result) ? count($result) : 0)."\n";
+		print __METHOD__." result=".$result['result']['result_code'].$result['result']['result_label']."\n";
+		$this->assertEquals('OK', $result['result']['result_code']);
+		$this->assertEquals('ref-phpunit-2', $result['ref_ext']);
 
-
-    	return $result;
-    }
-
+		return $result;
+	}
 }

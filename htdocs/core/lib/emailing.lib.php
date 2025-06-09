@@ -1,5 +1,6 @@
 <?php
 /* Copyright (C) 2009 Laurent Destailleur  <eldy@users.sourceforge.net>
+ * Copyright (C) 2024		MDW						<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * or see http://www.gnu.org/
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * or see https://www.gnu.org/
  */
 
 /**
@@ -25,7 +26,7 @@
  * Prepare array with list of tabs
  *
  * @param   Mailing	$object		Object related to tabs
- * @return  array				Array of tabs to show
+ * @return	array<array{0:string,1:string,2:string}>	Array of tabs to show
  */
 function emailing_prepare_head(Mailing $object)
 {
@@ -39,18 +40,17 @@ function emailing_prepare_head(Mailing $object)
 	$head[$h][2] = 'card';
 	$h++;
 
-	if (empty($conf->global->MAIN_USE_ADVANCED_PERMS) || (! empty($conf->global->MAIN_USE_ADVANCED_PERMS) && $user->rights->mailing->mailing_advance->recipient))
-	{
-    	$head[$h][0] = DOL_URL_ROOT."/comm/mailing/cibles.php?id=".$object->id;
-    	$head[$h][1] = $langs->trans("MailRecipients");
-		if ($object->nbemail > 0) $head[$h][1].= ' <span class="badge">'.$object->nbemail.'</span>';
-    	$head[$h][2] = 'targets';
-    	$h++;
-
+	if (!getDolGlobalString('MAIN_USE_ADVANCED_PERMS') || (getDolGlobalString('MAIN_USE_ADVANCED_PERMS') && $user->hasRight('mailing', 'mailing_advance', 'recipient'))) {
+		$head[$h][0] = DOL_URL_ROOT."/comm/mailing/targetemailing.php?id=".$object->id;
+		$head[$h][1] = $langs->trans("MailRecipients");
+		if ($object->nbemail > 0) {
+			$head[$h][1] .= '<span class="badge marginleftonlyshort">'.$object->nbemail.'</span>';
+		}
+		$head[$h][2] = 'targets';
+		$h++;
 	}
-	
-	if (! empty($conf->global->EMAILING_USE_ADVANCED_SELECTOR)) 
-	{
+
+	if (getDolGlobalString('EMAILING_USE_ADVANCED_SELECTOR')) {
 		$head[$h][0] = DOL_URL_ROOT."/comm/mailing/advtargetemailing.php?id=".$object->id;
 		$head[$h][1] = $langs->trans("MailAdvTargetRecipients");
 		$head[$h][2] = 'advtargets';
@@ -62,10 +62,14 @@ function emailing_prepare_head(Mailing $object)
 	$head[$h][2] = 'info';
 	$h++;
 
-	complete_head_from_modules($conf,$langs,$object,$head,$h,'emailing');
+	$head[$h][0] = DOL_URL_ROOT."/comm/mailing/note.php?id=".$object->id;
+	$head[$h][1] = $langs->trans("Note");
+	$head[$h][2] = 'note';
+	$h++;
 
-	complete_head_from_modules($conf,$langs,$object,$head,$h,'emailing','remove');
+	complete_head_from_modules($conf, $langs, $object, $head, $h, 'emailing');
+
+	complete_head_from_modules($conf, $langs, $object, $head, $h, 'emailing', 'remove');
 
 	return $head;
 }
-

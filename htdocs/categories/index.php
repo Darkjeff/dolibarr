@@ -1,10 +1,13 @@
 <?php
-/* Copyright (C) 2005       Matthieu Valleton   <mv@seeschloss.org>
- * Copyright (C) 2005       Eric Seigne         <eric.seigne@ryxeo.com>
- * Copyright (C) 2006-2016  Laurent Destailleur <eldy@users.sourceforge.net>
- * Copyright (C) 2007       Patrick Raguin      <patrick.raguin@gmail.com>
- * Copyright (C) 2005-2012  Regis Houssin       <regis.houssin@capnetworks.com>
- * Copyright (C) 2015       Raphaël Doursenaud  <rdoursenaud@gpcsolutions.fr>
+/* Copyright (C) 2005		Matthieu Valleton			<mv@seeschloss.org>
+ * Copyright (C) 2005		Eric Seigne					<eric.seigne@ryxeo.com>
+ * Copyright (C) 2006-2016	Laurent Destailleur			<eldy@users.sourceforge.net>
+ * Copyright (C) 2007		Patrick Raguin				<patrick.raguin@gmail.com>
+ * Copyright (C) 2005-2012	Regis Houssin				<regis.houssin@inodbox.com>
+ * Copyright (C) 2015		Raphaël Doursenaud			<rdoursenaud@gpcsolutions.fr>
+ * Copyright (C) 2021-2024	Frédéric France				<frederic.france@free.fr>
+ * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2025		Alexandre Spangaro			<alexandre@inovea-conseil.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -17,7 +20,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -26,175 +29,129 @@
  *      \brief      Home page of category area
  */
 
+// Load Dolibarr environment
 require '../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/categories/class/categorie.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/treeview.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
 
-$langs->load("categories");
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 
-if (! $user->rights->categorie->lire) accessforbidden();
+// Load translation files required by the page
+$langs->loadLangs(array("accountancy", "agenda", "banks", "bills", "categories", "contracts", "interventions"));
+$langs->loadLangs(array("knowledgemanagement", "members", "orders", "products", "stocks", "suppliers", "tickets", "website"));
 
-$id=GETPOST('id','int');
-$type=(GETPOST('type','aZ09') ? GETPOST('type','aZ09') : Categorie::TYPE_PRODUCT);
-$catname=GETPOST('catname','alpha');
+$mode = GETPOST('mode', 'aZ09');
+if (empty($mode)) {
+	$mode = 'hierarchy';
+}
 
-if (is_numeric($type)) $type=Categorie::$MAP_ID_TO_CODE[$type];	// For backward compatibility
+$categstatic = new Categorie($db);
+
+// Initialize a technical object to manage hooks. Note that conf->hooks_modules contains array array
+$hookmanager->initHooks(array('categoryindex'));
+
+$permissiontoread = $user->hasRight('categorie', 'read');
+$permissiontoadd = $user->hasRight('categorie', 'write');
+//$permissiontodelete = $user->hasRight('categorie', 'delete');
+
+if (!isModEnabled("category")) {
+	accessforbidden('Module Category not enabled');
+}
+if (!$permissiontoread) {
+	accessforbidden();
+}
 
 
 /*
  * View
  */
 
-$categstatic = new Categorie($db);
-$form = new Form($db);
+$title = $langs->trans("Categories");
 
-if ($type == Categorie::TYPE_PRODUCT)       { $title=$langs->trans("ProductsCategoriesArea");  $typetext='product'; }
-elseif ($type == Categorie::TYPE_SUPPLIER)  { $title=$langs->trans("SuppliersCategoriesArea"); $typetext='supplier'; }
-elseif ($type == Categorie::TYPE_CUSTOMER)  { $title=$langs->trans("CustomersCategoriesArea"); $typetext='customer'; }
-elseif ($type == Categorie::TYPE_MEMBER)    { $title=$langs->trans("MembersCategoriesArea");   $typetext='member'; }
-elseif ($type == Categorie::TYPE_CONTACT)   { $title=$langs->trans("ContactsCategoriesArea");  $typetext='contact'; }
-elseif ($type == Categorie::TYPE_ACCOUNT)   { $title=$langs->trans("AccountsCategoriesArea");  $typetext='bank_account'; }
-elseif ($type == Categorie::TYPE_PROJECT)   { $title=$langs->trans("ProjectsCategoriesArea");  $typetext='project'; }
-elseif ($type == Categorie::TYPE_USER)      { $title=$langs->trans("UsersCategoriesArea");     $typetext='user'; }
-else                                        { $title=$langs->trans("CategoriesArea");          $typetext='unknown'; }
+llxHeader('', $title, '', '', 0, 0, '', '');
 
-$arrayofjs=array('/includes/jquery/plugins/jquerytreeview/jquery.treeview.js', '/includes/jquery/plugins/jquerytreeview/lib/jquery.cookie.js');
-$arrayofcss=array('/includes/jquery/plugins/jquerytreeview/jquery.treeview.css');
+// Get list of category type
+$arrayofcateg = array();
+foreach ($categstatic->MAP_ID as $key => $idtype) {
+	$arrayofcateg[$idtype] = array();
+	$arrayofcateg[$idtype]['key'] = $key;
+	$arrayofcateg[$idtype]['nb'] = 0;
+	$arrayofcateg[$idtype]['label'] = $langs->transnoentitiesnoconv($categstatic::$MAP_TYPE_TITLE_AREA[$key]);
+	$arrayofcateg[$idtype]['labelwithoutaccent'] = dol_string_unaccent($langs->transnoentitiesnoconv($categstatic::$MAP_TYPE_TITLE_AREA[$key]));
+}
+$arrayofcateg = dol_sort_array($arrayofcateg, 'labelwithoutaccent', 'asc', 1, 0, 1);
 
-llxHeader('',$title,'','',0,0,$arrayofjs,$arrayofcss);
-
-
-print load_fiche_titre($title);
-
-//print '<table border="0" width="100%" class="notopnoleftnoright">';
-//print '<tr><td valign="top" width="30%" class="notopnoleft">';
-print '<div class="fichecenter"><div class="fichethirdleft">';
-
-
-/*
- * Zone recherche produit/service
- */
-print '<form method="post" action="index.php?type='.$type.'">';
-print '<input type="hidden" name="token" value="'.$_SESSION['newtoken'].'">';
-print '<input type="hidden" name="type" value="'.$type.'">';
-print '<table class="noborder nohover" width="100%">';
-print '<tr class="liste_titre">';
-print '<td colspan="3">'.$langs->trans("Search").'</td>';
-print '</tr>';
-print '<tr '.$bc[0].'><td>';
-print $langs->trans("Name").':</td><td><input class="flat inputsearch" type="text" name="catname" value="' . $catname . '"/></td><td><input type="submit" class="button" value="'.$langs->trans("Search").'"></td></tr>';
-/*
-// faire une rech dans une sous categorie uniquement
-print '<tr '.$bc[0].'><td>';
-print $langs->trans("SubCatOf").':</td><td>';
-
-print $form->select_all_categories('','subcatof');
-print '</td>';
-print '<td><input type="submit" class="button" value="'.$langs->trans ("Search").'"></td></tr>';
-*/
-
-print '</table></form>';
-
-
-//print '</td><td valign="top" width="70%">';
-print '</div><div class="fichetwothirdright"><div class="ficheaddleft">';
-
-
-/*
- * Categories found
- */
-if ($catname || $id > 0)
-{
-	$cats = $categstatic->rechercher($id, $catname, $typetext);
-
-	print '<table class="noborder" width="100%">';
-	print '<tr class="liste_titre"><td colspan="2">'.$langs->trans("FoundCats").'</td></tr>';
-
-	$var=true;
-	foreach ($cats as $cat)
-	{
-		print "\t".'<tr class="oddeven">'."\n";
-		print "\t\t<td>";
-		$categstatic->id=$cat->id;
-		$categstatic->ref=$cat->label;
-		$categstatic->label=$cat->label;
-		$categstatic->type=$cat->type;
-		$categstatic->color=$cat->color;
-		print '<span class="noborderoncategories" '.($categstatic->color?' style="background: #'.$categstatic->color.';"':' style="background: #aaa"').'>';
-		print $categstatic->getNomUrl(1,'');
-		print '</span>';
-		print "</td>\n";
-		print "\t\t<td>";
-		print dolGetFirstLineOfText($cat->description);
-		print "</td>\n";
-		print "\t</tr>\n";
+// Get number of tags per category type
+$sql = "SELECT type as idtype, COUNT(rowid) as nb FROM ".MAIN_DB_PREFIX."categorie GROUP BY type";
+$resql = $db->query($sql);
+if ($resql) {
+	while ($obj = $db->fetch_object($resql)) {
+		$arrayofcateg[$obj->idtype]['nb'] = $obj->nb;
 	}
-	print "</table>";
-}
-else print '&nbsp;';
-
-
-//print '</td></tr></table>';
-print '</div></div></div>';
-
-print '<div class="fichecenter"><br>';
-
-
-// Charge tableau des categories
-$cate_arbo = $categstatic->get_full_arbo($typetext);
-
-// Define fulltree array
-$fulltree=$cate_arbo;
-
-// Define data (format for treeview)
-$data=array();
-$data[] = array('rowid'=>0,'fk_menu'=>-1,'title'=>"racine",'mainmenu'=>'','leftmenu'=>'','fk_mainmenu'=>'','fk_leftmenu'=>'');
-foreach($fulltree as $key => $val)
-{
-	$categstatic->id=$val['id'];
-	$categstatic->ref=$val['label'];
-	$categstatic->color=$val['color'];
-	$categstatic->type=$type;
-	$li=$categstatic->getNomUrl(1,'',60);
-	$desc=dol_htmlcleanlastbr($val['description']);
-
-	$data[] = array(
-	'rowid'=>$val['rowid'],
-	'fk_menu'=>$val['fk_parent'],
-	'entry'=>'<table class="nobordernopadding centpercent"><tr><td><span class="noborderoncategories" '.($categstatic->color?' style="background: #'.$categstatic->color.';"':' style="background: #aaa"').'>'.$li.'</span></td>'.
-	//'<td width="50%">'.dolGetFirstLineOfText($desc).'</td>'.
-	'<td align="right" width="20px;"><a href="'.DOL_URL_ROOT.'/categories/viewcat.php?id='.$val['id'].'&type='.$type.'">'.img_view().'</a></td>'.
-	'</tr></table>'
-	);
+} else {
+	dol_print_error($db);
 }
 
+print_barre_liste($title, 0, $_SERVER["PHP_SELF"], '', '', '', '', -1, 0, $categstatic->picto, 0, '', '', -1, 0, 1, 1);
 
-print '<table class="liste nohover" width="100%">';
-print '<tr class="liste_titre"><td>'.$langs->trans("Categories").'</td><td></td><td align="right">';
-if (! empty($conf->use_javascript_ajax))
-{
-	print '<div id="iddivjstreecontrol"><a class="notasortlink" href="#">'.img_picto('','object_category').' '.$langs->trans("UndoExpandAll").'</a> | <a class="notasortlink" href="#">'.img_picto('','object_category-expanded').' '.$langs->trans("ExpandAll").'</a></div>';
-}
-print '</td></tr>';
+print '<span class="opacitymedium">';
+print $langs->trans("CategorieListOfType").'...<br>';
+print '</span>';
 
-$nbofentries=(count($data) - 1);
+print '<br>';
 
-if ($nbofentries > 0)
-{
-	print '<tr class="pair"><td colspan="3">';
-	tree_recur($data,$data[0],0);
-	print '</td></tr>';
-}
-else
-{
-	print '<tr class="pair">';
-	print '<td colspan="3"><table class="nobordernopadding"><tr class="nobordernopadding"><td>'.img_picto_common('','treemenu/branchbottom.gif').'</td>';
-	print '<td valign="middle">';
-	print $langs->trans("NoCategoryYet");
+print '<div class="aaa">';
+
+print '<table class="liste nohover centpercent noborder">';
+
+print '<tr class="liste_titre"><td>'.$langs->trans("Type").'</td>';
+print '<td class="center">'.$langs->trans("NumberOfCategories").'</td>';
+print '<td></td>';
+print '</tr>';
+
+
+foreach ($arrayofcateg as $idtype => $val) {
+	$key = $val['key'];
+	$tmparray = getElementProperties($key);
+
+	$classname = $tmparray['classname'];
+	$classpath = $tmparray['classpath'];
+	$classfile = $tmparray['classfile'];
+	$module = $tmparray['module'];
+	$fullpath = DOL_DOCUMENT_ROOT.'/'.$classpath.'/'.$classfile.'.class.php';
+
+	if (!isModEnabled($module)) {
+		continue;
+	}
+
+	print '<tr class="oddeven">';
+	print '<td>';
+
+	$tmpobject = null;
+	include_once $fullpath;
+	if (class_exists($classname)) {
+		$tmpobject = new $classname($db);
+	}
+	//print "key=".$key." fullpath=".$fullpath." classname=".$classname." classpath=".$classpath." classfile=".$classfile;
+
+	if ($tmpobject) {
+		print img_picto('', $tmpobject->picto, 'class="pictofixedwidth"');
+	} else {
+		print img_picto('', 'generic', 'class="pictofixedwidth"');
+	}
+	print dolPrintHTML($arrayofcateg[$idtype]['label']);
 	print '</td>';
-	print '<td>&nbsp;</td>';
-	print '</table></td>';
+	print '<td class="center">';
+	print $arrayofcateg[$idtype]['nb'];
+	print '</td>';
+	print '<td class="center"><a class="editfielda" href="'.DOL_URL_ROOT.'/categories/categorie_list.php?mode=hierarchy&type='.urlencode($key).'">'.img_picto('', 'edit').'</a></td>';
 	print '</tr>';
 }
 
@@ -202,6 +159,6 @@ print "</table>";
 
 print '</div>';
 
+// End of page
 llxFooter();
-
 $db->close();

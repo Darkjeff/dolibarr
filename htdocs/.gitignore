@@ -1,3 +1,4 @@
+/aaa*
 /allscreens*
 /ancot*
 /bootstrap*
@@ -16,11 +17,12 @@
 /teclib*
 /test.php
 /ultimatepdf*
-/lead
-/dolimed*
-/allscreens*
 /ecommerce/
 /cabinetmed*
 /webmail*
 /conf/conf.php
-/subtotal/
+/subtotal*
+/abricot*
+/nomenclature*
+/of/
+/oblyon*

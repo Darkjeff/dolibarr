@@ -12,8 +12,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * or see http://www.gnu.org/
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * or see https://www.gnu.org/
  */
 
 /**
@@ -26,16 +26,16 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/company.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/modules/rapport/pdf_paiement.class.php';
 
 /**
- *	Classe permettant de generer les rapports de paiement
+ *	Class permettant de generer les rapports de paiement
  */
 class pdf_paiement_fourn extends pdf_paiement
 {
 	/**
-     *  Constructor
-     *
-     *  @param      DoliDb		$db      Database handler
+	 *  Constructor
+	 *
+	 *  @param      DoliDB		$db      Database handler
 	 */
-	function __construct($db)
+	public function __construct($db)
 	{
 		parent::__construct($db);
 		$this->doc_type = "fourn";

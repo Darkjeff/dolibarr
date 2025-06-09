@@ -1,74 +1,92 @@
 <!-- BEGIN TEMPLATE resource_view.tpl.php -->
 <?php
+/* Copyright (C) 2024		MDW	                    <mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
+
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var Translate $langs
+ *
+ * @var string $element
+ * @var int $element_id
+ * @var string $mode
+ * @var string $resource_type
+ * @var array<array{rowid:int,resource_id:int,resource_type:string,busy:int<0,1>,mandatory:int<0,1>}> $linked_resources
+ */
 // Protection to avoid direct call of template
-if (empty($conf) || ! is_object($conf))
-{
+if (empty($conf) || !is_object($conf)) {
 	print "Error, template page can't be called as URL";
-	exit;
+	exit(1);
 }
 
+'
+@phan-var-force string $element
+@phan-var-force int $element_id
+@phan-var-force string $resource_type
+@phan-var-force array<array{rowid:int,resource_id:int,resource_type:string,busy:int<0,1>,mandatory:int<0,1>}> $linked_resources
+';
 
-$form= new Form($db);
+
+$form = new Form($db);
 
 
 print '<div class="tagtable centpercent noborder allwidth">';
 
-if($mode == 'edit' )
-{
-    print '<form class="tagtr liste_titre">';
-    print '<div class="tagtd liste_titre">'.$langs->trans('Resource').'</div>';
-    print '<div class="tagtd liste_titre">'.$langs->trans('Type').'</div>';
-    print '<div class="tagtd liste_titre" align="center">'.$langs->trans('Busy').'</div>';
-    print '<div class="tagtd liste_titre" align="center">'.$langs->trans('Mandatory').'</div>';
-    print '<div class="tagtd liste_titre"></div>';
-    print '</form>';
-}
-else
-{
-    print '<form class="tagtr liste_titre">';
-    print '<div class="tagtd liste_titre">'.$langs->trans('Resource').'</div>';
-    print '<div class="tagtd liste_titre">'.$langs->trans('Type').'</div>';
-    print '<div class="tagtd liste_titre" align="center">'.$langs->trans('Busy').'</div>';
-    print '<div class="tagtd liste_titre" align="center">'.$langs->trans('Mandatory').'</div>';
-    print '<div class="tagtd liste_titre"></div>';
-    print '</form>';
-}
+print '<form method="POST" class="tagtable centpercent noborder borderbottom allwidth">';
 
-if( (array) $linked_resources && count($linked_resources) > 0)
-{
-	$var=true;
+print '<div class="tagtr liste_titre">';
+print '<div class="tagtd liste_titre">'.$langs->trans('Resource').'</div>';
+print '<div class="tagtd liste_titre">'.$langs->trans('Type').'</div>';
+print '<div class="tagtd liste_titre center">'.$langs->trans('Busy').'</div>';
+print '<div class="tagtd liste_titre center">'.$langs->trans('Mandatory').'</div>';
+print '<div class="tagtd liste_titre"></div>';
+print '</div>';
 
-	foreach ($linked_resources as $linked_resource)
-	{
+print '<input type="hidden" name="token" value="'.newToken().'" />';
+print '<input type="hidden" name="id" value="'.$element_id.'" />';
+print '<input type="hidden" name="action" value="update_linked_resource" />';
+print '<input type="hidden" name="resource_type" value="'.$resource_type.'" />';
 
-		$object_resource = fetchObjectByElement($linked_resource['resource_id'],$linked_resource['resource_type']);
+if ((array) $linked_resources && count($linked_resources) > 0) {
+	foreach ($linked_resources as $linked_resource) {
+		$object_resource = fetchObjectByElement($linked_resource['resource_id'], $linked_resource['resource_type']);
 
 		//$element_id = $linked_resource['rowid'];
 
-		if ($mode == 'edit' && $linked_resource['rowid'] == GETPOST('lineid'))
-		{
-
-			print '<form class="tagtr '.($var==true?'pair':'impair').'" action="'.$_SERVER["PHP_SELF"].'?element='.$element.'&element_id='.$element_id.'" method="POST">';
-			print '<input type="hidden" name="token" value="'.$_SESSION['newtoken'].'" />';
-			print '<input type="hidden" name="id" value="'.$object->id.'" />';
-			print '<input type="hidden" name="action" value="update_linked_resource" />';
-			print '<input type="hidden" name="resource_type" value="'.$resource_type.'" />';
+		if ($mode == 'edit' && $linked_resource['rowid'] == GETPOSTINT('lineid')) {
+			print '<div class="tagtr oddeven">';
 			print '<input type="hidden" name="lineid" value="'.$linked_resource['rowid'].'" />';
+			print '<input type="hidden" name="element" value="'.$element.'" />';
+			print '<input type="hidden" name="element_id" value="'.$element_id.'" />';
 
 			print '<div class="tagtd">'.$object_resource->getNomUrl(1).'</div>';
 			print '<div class="tagtd">'.$object_resource->type_label.'</div>';
-			print '<div class="tagtd" align="center">'.$form->selectyesno('busy',$linked_resource['busy']?1:0,1).'</div>';
-			print '<div class="tagtd" align="center">'.$form->selectyesno('mandatory',$linked_resource['mandatory']?1:0,1).'</div>';
-			print '<div class="tagtd" align="right"><input type="submit" class="button" value="'.$langs->trans("Update").'"></div>';
-			print '</form>';
-		}
-		else
-		{
-			$style='';
-			if ($linked_resource['rowid'] == GETPOST('lineid'))
-				$style='style="background: orange;"';
+			print '<div class="tagtd center">'.$form->selectyesno('busy', $linked_resource['busy'] ? 1 : 0, 1).'</div>';
+			print '<div class="tagtd center">'.$form->selectyesno('mandatory', $linked_resource['mandatory'] ? 1 : 0, 1).'</div>';
+			print '<div class="tagtd right"><input type="submit" class="button" value="'.$langs->trans("Update").'"></div>';
+			print '</div>';
+		} else {
+			$class = '';
+			if ($linked_resource['rowid'] == GETPOSTINT('lineid')) {
+				$class = 'highlight';
+			}
 
-			print '<form class="tagtr '.($var==true?"pair":"impair").'" '.$style.'>';
+			print '<div class="tagtr oddeven'.($class ? ' '.$class : '').'">';
 
 			print '<div class="tagtd">';
 			print $object_resource->getNomUrl(1);
@@ -78,38 +96,38 @@ if( (array) $linked_resources && count($linked_resources) > 0)
 			print $object_resource->type_label;
 			print '</div>';
 
-			print '<div class="tagtd" align="center">';
+			print '<div class="tagtd center">';
 			print yn($linked_resource['busy']);
 			print '</div>';
 
-			print '<div class="tagtd" align="center">';
+			print '<div class="tagtd center">';
 			print yn($linked_resource['mandatory']);
 			print '</div>';
 
-			print '<div class="tagtd" align="right">';
-			print '<a href="'.$_SERVER['PHP_SELF'].'?mode=edit&resource_type='.$linked_resource['resource_type'].'&element='.$element.'&element_id='.$element_id.'&lineid='.$linked_resource['rowid'].'">';
+			print '<div class="tagtd right">';
+			print '<a class="editfielda marginleftonly marginrightonly" href="'.$_SERVER['PHP_SELF'].'?mode=edit&token='.newToken().'&resource_type='.$linked_resource['resource_type'].'&element='.$element.'&element_id='.$element_id.'&lineid='.$linked_resource['rowid'].'">';
 			print img_edit();
 			print '</a>';
 			print '&nbsp;';
-			print '<a href="'.$_SERVER['PHP_SELF'].'?action=delete_resource&id='.$linked_resource['resource_id'].'&element='.$element.'&element_id='.$element_id.'&lineid='.$linked_resource['rowid'].'">';
-			print img_delete();
+			print '<a class="marginleftonly marginrightonly" href="'.$_SERVER['PHP_SELF'].'?action=delete_resource&token='.newToken().'&id='.$linked_resource['resource_id'].'&element='.$element.'&element_id='.$element_id.'&lineid='.$linked_resource['rowid'].'">';
+			print img_picto($langs->trans("Unlink"), 'unlink');
 			print '</a>';
 			print '</div>';
 
-			print '</form>';
+			print '</div>';
 		}
 	}
-
-}
-else {
-	print '<form class="tagtr '.($var==true?"pair":"impair").'">';
+} else {
+	print '<div class="tagtr oddeven">';
 	print '<div class="tagtd opacitymedium">'.$langs->trans('NoResourceLinked').'</div>';
 	print '<div class="tagtd opacitymedium"></div>';
 	print '<div class="tagtd opacitymedium"></div>';
 	print '<div class="tagtd opacitymedium"></div>';
 	print '<div class="tagtd opacitymedium"></div>';
-	print '</form>';
+	print '</div>';
 }
+
+print '</form>';
 
 print '</div>';
 

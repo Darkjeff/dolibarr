@@ -1,6 +1,6 @@
 -- ===================================================================
 -- Copyright (C) 2002-2003 Rodolphe Quiedeville <rodolphe@quiedeville.org>
--- Copyright (C) 2005-2007 Regis Houssin        <regis.houssin@capnetworks.com>
+-- Copyright (C) 2005-2007 Regis Houssin        <regis.houssin@inodbox.com>
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ===================================================================
 
@@ -25,5 +25,6 @@ create table llx_fichinterdet
   date              datetime,          -- date de la ligne d'intervention
   description       text,              -- description de la ligne d'intervention
   duree             integer,           -- duree de la ligne d'intervention
-  rang              integer DEFAULT 0  -- ordre affichage sur la fiche
+  rang              integer DEFAULT 0, -- ordre affichage sur la fiche
+  extraparams		varchar(255)	   -- to stock other parameters in json format
 )ENGINE=innodb;

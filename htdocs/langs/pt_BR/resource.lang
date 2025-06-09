@@ -2,6 +2,7 @@
 DeleteResource=Remover recurso
 ConfirmDeleteResourceElement=Confirmar remoção do recurso para este elemento
 NoResourceLinked=Nenhum recurso vinculado
+ActionsOnResource=Eventos com este recurso
 ResourceCard=Cartao recursos
 AddResource=Criar recurso
 ResourcesLinkedToElement=Recursos vinculados ao elemento
@@ -14,4 +15,3 @@ ConfirmDeleteResource=Confirme para remover este recurso
 RessourceSuccessfullyDeleted=Recurso removido com sucesso
 DictionaryResourceType=Tipo de recurso
 SelectResource=Selecionar recurso
-IdResource=Recurso de identificação

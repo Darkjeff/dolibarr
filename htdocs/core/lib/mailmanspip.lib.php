@@ -1,5 +1,6 @@
 <?php
 /* Copyright (C) 2006-2011 Laurent Destailleur  <eldy@users.sourceforge.net>
+ * Copyright (C) 2024		MDW						<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,35 +13,34 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * or see http://www.gnu.org/
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * or see https://www.gnu.org/
  */
 
 /**
  *	    \file       htdocs/core/lib/member.lib.php
- *		\brief      Ensemble de fonctions de base pour les adherents
+ *		\brief      Ensemble de functions de base pour les adherents
  */
 
 /**
- *  Return array head with list of tabs to view object informations
+ *  Return array head with list of tabs to view object information
  *
- *  @return array Tabs of the module
+ * @return	array<array{0:string,1:string,2:string}>	Array of tabs to show
  */
 function mailmanspip_admin_prepare_head()
 {
-    global $langs;
+	global $langs;
 
-    return array(
-        array(
-            DOL_URL_ROOT.'/admin/mailman.php',
-            $langs->trans('Mailman'),
-            'mailman'
-        ),
-        array(
-            DOL_URL_ROOT.'/admin/spip.php',
-            $langs->trans('SPIP'),
-            'spip'
-        )
-    );
+	return array(
+		array(
+			DOL_URL_ROOT.'/admin/mailman.php',
+			'Mailman',
+			'mailman'
+		),
+		array(
+			DOL_URL_ROOT.'/admin/spip.php',
+			'SPIP',
+			'spip'
+		)
+	);
 }
-

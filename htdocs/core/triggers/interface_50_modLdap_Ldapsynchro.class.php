@@ -1,7 +1,8 @@
 <?php
 /* Copyright (C) 2005-2012	Laurent Destailleur	<eldy@users.sourceforge.net>
- * Copyright (C) 2005-2017	Regis Houssin		<regis.houssin@capnetworks.com>
+ * Copyright (C) 2005-2021	Regis Houssin		<regis.houssin@inodbox.com>
  * Copyright (C) 2014		Marcos García		<marcosgdf@gmail.com>
+ * Copyright (C) 2024-2025	MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,7 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -24,8 +25,6 @@
  */
 
 require_once DOL_DOCUMENT_ROOT.'/core/triggers/dolibarrtriggers.class.php';
-require_once DOL_DOCUMENT_ROOT."/core/class/ldap.class.php";
-require_once DOL_DOCUMENT_ROOT."/user/class/usergroup.class.php";
 
 
 /**
@@ -33,770 +32,755 @@ require_once DOL_DOCUMENT_ROOT."/user/class/usergroup.class.php";
  */
 class InterfaceLdapsynchro extends DolibarrTriggers
 {
-	public $family = 'ldap';
-	public $description = "Triggers of this module allows to synchronize Dolibarr toward a LDAP database.";
-	public $version = self::VERSION_DOLIBARR;
-	public $picto = 'technic';
+	/**
+	 * Constructor
+	 *
+	 * @param DoliDB $db Database handler
+	 */
+	public function __construct($db)
+	{
+		$this->db = $db;
+
+		$this->name = preg_replace('/^Interface/i', '', get_class($this));
+		$this->family = "ldap";
+		$this->description = "Triggers of this module allows to synchronize Dolibarr toward a LDAP database.";
+		$this->version = self::VERSIONS['prod'];
+		$this->picto = 'technic';
+	}
 
 	/**
-	 * Function called when a Dolibarrr business event is done.
+	 * Function called when a Dolibarr business event is done.
 	 * All functions "runTrigger" are triggered if file is inside directory htdocs/core/triggers or htdocs/module/code/triggers (and declared)
 	 *
 	 * @param string		$action		Event action code
-	 * @param Object		$object     Object
+	 * @param Adherent|User|UserGroup|Contact	$object     Object  (Note: AdherentType seems excluded)
 	 * @param User		    $user       Object user
 	 * @param Translate 	$langs      Object langs
-	 * @param conf		    $conf       Object conf
-	 * @return int         				<0 if KO, 0 if no triggered ran, >0 if OK
+	 * @param Conf		    $conf       Object conf
+	 * @return int						Return integer <0 if KO, 0 if no triggered ran, >0 if OK
 	 */
 	public function runTrigger($action, $object, User $user, Translate $langs, Conf $conf)
 	{
-		if (empty($conf->ldap->enabled)) return 0;		// Module not active, we do nothing
-		if (defined('DISABLE_LDAP_SYNCHRO')) return 0;	// If constant defined, we do nothing
+		if (empty($conf->ldap) || empty($conf->ldap->enabled)) {
+			return 0; // Module not active, we do nothing
+		}
+		if (defined('DISABLE_LDAP_SYNCHRO')) {
+			return 0; // If constant defined, we do nothing
+		}
 
-		if (! function_exists('ldap_connect'))
-		{
+		if (!function_exists('ldap_connect')) {
 			dol_syslog("Warning, module LDAP is enabled but LDAP functions not available in this PHP", LOG_WARNING);
 			return 0;
 		}
 
-		$result=0;
+		require_once DOL_DOCUMENT_ROOT."/core/class/ldap.class.php";
+		require_once DOL_DOCUMENT_ROOT."/user/class/usergroup.class.php";
+
+		$result = 0;
 
 		// Users
-		if ($action == 'USER_CREATE')
-		{
+		if ($action == 'USER_CREATE') {
+			'@phan-var-force User $object'; // Seems to suppose this object kind
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_SYNCHRO_ACTIVE) && $conf->global->LDAP_SYNCHRO_ACTIVE === 'dolibarr2ldap')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+			if (getDolGlobalString('LDAP_SYNCHRO_ACTIVE') && getDolGlobalInt('LDAP_SYNCHRO_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+				if ($result > 0) {
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					$result=$ldap->add($dn,$info,$user);
-				}
-
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
-			}
-		}
-		elseif ($action == 'USER_MODIFY')
-		{
-			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_SYNCHRO_ACTIVE) && $conf->global->LDAP_SYNCHRO_ACTIVE === 'dolibarr2ldap')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
-
-				if ($result > 0)
-				{
-					if (empty($object->oldcopy) || ! is_object($object->oldcopy))
-					{
-						dol_syslog("Trigger ".$action." was called by a function that did not set previously the property ->oldcopy onto object", LOG_WARNING);
-						$object->oldcopy = clone $object;
+					//For compatibility with Samba 4 AD
+					if ($ldap->serverType == "activedirectory") {
+						$info['userAccountControl'] = getDolGlobalString('LDAP_USERACCOUNTCONTROL');
 					}
 
-					$oldinfo=$object->oldcopy->_load_ldap_info();
-					$olddn=$object->oldcopy->_load_ldap_dn($oldinfo);
+					$result = $ldap->add($dn, $info, $user);
+				}
+
+				if ($result < 0) {
+					$this->error = "ErrorLDAP ".$ldap->error;
+				}
+			}
+		} elseif ($action == 'USER_MODIFY') {
+			'@phan-var-force User $object'; // Seems to suppose this object kind
+			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
+			if (getDolGlobalString('LDAP_SYNCHRO_ACTIVE') && getDolGlobalInt('LDAP_SYNCHRO_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
+
+				if ($result > 0) {
+					if (empty($object->oldcopy) || !is_object($object->oldcopy)) {
+						dol_syslog("Trigger ".$action." was called by a function that did not set previously the property ->oldcopy onto object", LOG_WARNING);
+						$object->oldcopy = clone $object;  // @phan-suppress-current-line PhanTypeMismatchProperty
+					}
+
+					$oldinfo = $object->oldcopy->_load_ldap_info();
+					$olddn = $object->oldcopy->_load_ldap_dn($oldinfo);
 
 					// Verify if entry exist
-					$container=$object->oldcopy->_load_ldap_dn($oldinfo,1);
-					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo,2).")";
-					$records=$ldap->search($container,$search);
-					if (count($records) && $records['count'] == 0)
-					{
+					$container = $object->oldcopy->_load_ldap_dn($oldinfo, 1);
+					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo, 2).")";
+					$records = $ldap->search($container, $search);
+					if (count($records) && $records['count'] == 0) {
 						$olddn = '';
 					}
 
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
-					$newrdn=$object->_load_ldap_dn($info,2);
-					$newparent=$object->_load_ldap_dn($info,1);
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
+					$newrdn = $object->_load_ldap_dn($info, 2);
+					$newparent = $object->_load_ldap_dn($info, 1);
 
-					$result=$ldap->update($dn,$info,$user,$olddn,$newrdn,$newparent);
-				}
+					$result = $ldap->update($dn, $info, $user, $olddn, $newrdn, $newparent);
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
-			}
-		}
-		elseif ($action == 'USER_NEW_PASSWORD')
-		{
-			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_SYNCHRO_ACTIVE) && $conf->global->LDAP_SYNCHRO_ACTIVE === 'dolibarr2ldap')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+					if ($result > 0 && !empty($object->context['newgroupid'])) {      // We are in context of adding a new group to user
+						$usergroup = new UserGroup($this->db);
 
-				if ($result > 0)
-				{
-					if (empty($object->oldcopy) || ! is_object($object->oldcopy))
-					{
-						dol_syslog("Trigger ".$action." was called by a function that did not set previously the property ->oldcopy onto object", LOG_WARNING);
-						$object->oldcopy = clone $object;
+						$usergroup->fetch($object->context['newgroupid'], '', true);
+
+						$oldinfo = $usergroup->_load_ldap_info();
+						$olddn = $usergroup->_load_ldap_dn($oldinfo);
+
+						// Verify if entry exist
+						$container = $usergroup->_load_ldap_dn($oldinfo, 1);
+						$search = "(".$usergroup->_load_ldap_dn($oldinfo, 2).")";
+						$records = $ldap->search($container, $search);
+						if (count($records) && $records['count'] == 0) {
+							$olddn = '';
+						}
+
+						$info = $usergroup->_load_ldap_info(); // Contains all members, included the new one (insert already done before trigger call)
+						$dn = $usergroup->_load_ldap_dn($info);
+
+						$result = $ldap->update($dn, $info, $user, $olddn);
 					}
 
-					$oldinfo=$object->oldcopy->_load_ldap_info();
-					$olddn=$object->oldcopy->_load_ldap_dn($oldinfo);
+					if ($result > 0 && !empty($object->context['oldgroupid'])) {      // We are in context of removing a group from user
+						$usergroup = new UserGroup($this->db);
+
+						$usergroup->fetch($object->context['oldgroupid'], '', true);
+
+						$oldinfo = $usergroup->_load_ldap_info();
+						$olddn = $usergroup->_load_ldap_dn($oldinfo);
+
+						// Verify if an entry exists
+						$container = $usergroup->_load_ldap_dn($oldinfo, 1);
+						$search = "(".$usergroup->_load_ldap_dn($oldinfo, 2).")";
+						$records = $ldap->search($container, $search);
+						if (count($records) && $records['count'] == 0) {
+							$olddn = '';
+						}
+
+						$info = $usergroup->_load_ldap_info(); // Contains all members, except the old one (remove already done before trigger call)
+						$dn = $usergroup->_load_ldap_dn($info);
+
+						$result = $ldap->update($dn, $info, $user, $olddn);
+					}
+				}
+
+				if ($result < 0) {
+					$this->error = "ErrorLDAP ".$ldap->error;
+				}
+			}
+		} elseif ($action == 'USER_NEW_PASSWORD') {
+			'@phan-var-force User $object'; // Seems to suppose this object kind
+			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
+			if (getDolGlobalString('LDAP_SYNCHRO_ACTIVE') && getDolGlobalInt('LDAP_SYNCHRO_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
+
+				if ($result > 0) {
+					if (empty($object->oldcopy) || !is_object($object->oldcopy)) {
+						dol_syslog("Trigger ".$action." was called by a function that did not set previously the property ->oldcopy onto object", LOG_WARNING);
+						$object->oldcopy = clone $object;  // @phan-suppress-current-line PhanTypeMismatchProperty
+					}
+
+					$oldinfo = $object->oldcopy->_load_ldap_info();
+					$olddn = $object->oldcopy->_load_ldap_dn($oldinfo);
 
 					// Verify if entry exist
-					$container=$object->oldcopy->_load_ldap_dn($oldinfo,1);
-					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo,2).")";
-					$records=$ldap->search($container,$search);
-					if (count($records) && $records['count'] == 0)
-					{
+					$container = $object->oldcopy->_load_ldap_dn($oldinfo, 1);
+					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo, 2).")";
+					$records = $ldap->search($container, $search);
+					if (count($records) && $records['count'] == 0) {
 						$olddn = '';
 					}
 
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					$result=$ldap->update($dn,$info,$user,$olddn);
+					$result = $ldap->update($dn, $info, $user, $olddn);
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
-			}
-		}
-		elseif ($action == 'USER_ENABLEDISABLE')
-		{
-			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-		}
-		elseif ($action == 'USER_DELETE')
-		{
-			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_SYNCHRO_ACTIVE) && $conf->global->LDAP_SYNCHRO_ACTIVE === 'dolibarr2ldap')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
-
-				if ($result > 0)
-				{
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
-
-					$result=$ldap->delete($dn);
+				if ($result < 0) {
+					$this->error = "ErrorLDAP ".$ldap->error;
 				}
-
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
 			}
-		}
-		elseif ($action == 'USER_SETINGROUP')
-		{
+		} elseif ($action == 'USER_ENABLEDISABLE') {
+			'@phan-var-force User $object'; // Seems to suppose this object kind
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_SYNCHRO_ACTIVE) && $conf->global->LDAP_SYNCHRO_ACTIVE === 'dolibarr2ldap')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
-
-				if ($result > 0)
-				{
-					// Must edit $object->newgroupid
-					$usergroup=new UserGroup($this->db);
-					if ($object->newgroupid > 0)
-					{
-						$usergroup->fetch($object->newgroupid);
-
-						$oldinfo=$usergroup->_load_ldap_info();
-						$olddn=$usergroup->_load_ldap_dn($oldinfo);
-
-						// Verify if entry exist
-						$container=$usergroup->_load_ldap_dn($oldinfo,1);
-						$search = "(".$usergroup->_load_ldap_dn($oldinfo,2).")";
-						$records=$ldap->search($container,$search);
-						if (count($records) && $records['count'] == 0)
-						{
-							$olddn = '';
+			if (getDolGlobalInt("LDAP_SYNCHRO_ACTIVE") === Ldap::SYNCHRO_DOLIBARR_TO_LDAP && getDolGlobalString('LDAP_SERVER_TYPE') == "activedirectory") {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
+				if ($result > 0) {
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
+					$search = "(" . $object->_load_ldap_dn($info, 2) . ")";
+					$uAC = $ldap->getAttributeValues($search, "userAccountControl");
+					if ($uAC["count"] == 1) {
+						$userAccountControl = intval($uAC[0]);
+						$enabledBitMask = 0x2;
+						$isEnabled = ($userAccountControl & $enabledBitMask) === 0;
+						if ($isEnabled && intval($object->statut) === 1) {
+							$userAccountControl += 2;
+						} elseif (!$isEnabled && intval($object->statut) === 0) {
+							$userAccountControl -= 2;
 						}
-
-						$info=$usergroup->_load_ldap_info();    // Contains all members, included the new one (insert already done before trigger call)
-						$dn=$usergroup->_load_ldap_dn($info);
-
-						$result=$ldap->update($dn,$info,$user,$olddn);
-					}
-				}
-
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
-			}
-		}
-		elseif ($action == 'USER_REMOVEFROMGROUP')
-		{
-			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_SYNCHRO_ACTIVE) && $conf->global->LDAP_SYNCHRO_ACTIVE === 'dolibarr2ldap')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
-
-				if ($result > 0)
-				{
-					// Must edit $object->newgroupid
-					$usergroup=new UserGroup($this->db);
-					if ($object->oldgroupid > 0)
-					{
-						$usergroup->fetch($object->oldgroupid);
-
-						$oldinfo=$usergroup->_load_ldap_info();
-						$olddn=$usergroup->_load_ldap_dn($oldinfo);
-
-						// Verify if entry exist
-						$container=$usergroup->_load_ldap_dn($oldinfo,1);
-						$search = "(".$usergroup->_load_ldap_dn($oldinfo,2).")";
-						$records=$ldap->search($container,$search);
-						if (count($records) && $records['count'] == 0)
-						{
-							$olddn = '';
+						$info['userAccountControl'] = $userAccountControl;
+						// @phan-suppress-next-line PhanPluginSuspiciousParamPosition
+						$resUpdate = $ldap->update($dn, $info, $user, $dn);
+						if ($resUpdate < 0) {
+							$this->error = "ErrorLDAP " . $ldap->error;
 						}
-
-						$info=$usergroup->_load_ldap_info();    // Contains all members, included the new one (insert already done before trigger call)
-						$dn=$usergroup->_load_ldap_dn($info);
-
-						$result=$ldap->update($dn,$info,$user,$olddn);
 					}
+				} else {
+					$this->error = "ErrorLDAP " . $ldap->error;
+				}
+			}
+		} elseif ($action == 'USER_DELETE') {
+			'@phan-var-force User $object'; // Seems to suppose this object kind
+			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
+			if (getDolGlobalString('LDAP_SYNCHRO_ACTIVE') && getDolGlobalInt('LDAP_SYNCHRO_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
+
+				if ($result > 0) {
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
+
+					$result = $ldap->delete($dn);
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result < 0) {
+					$this->error = "ErrorLDAP ".$ldap->error;
+				}
 			}
-		}
-
-		// Groupes
-		elseif ($action == 'GROUP_CREATE')
-		{
+		} elseif ($action == 'USERGROUP_CREATE') {
+			'@phan-var-force UserGroup $object'; // Seems to suppose this object kind
+			// Groups
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_SYNCHRO_ACTIVE) && $conf->global->LDAP_SYNCHRO_ACTIVE === 'dolibarr2ldap')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+			if (getDolGlobalString('LDAP_SYNCHRO_ACTIVE') && getDolGlobalInt('LDAP_SYNCHRO_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+				if ($result > 0) {
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					// Get a gid number for objectclass PosixGroup
-					if (in_array('posixGroup',$info['objectclass'])) {
+					// Get a gid number for objectclass PosixGroup if none was provided
+					if (empty($info[getDolGlobalString('LDAP_GROUP_FIELD_GROUPID')]) && in_array('posixGroup', $info['objectclass'])) {
 						$info['gidNumber'] = $ldap->getNextGroupGid('LDAP_KEY_GROUPS');
 					}
 
-					$result=$ldap->add($dn,$info,$user);
-				}
-
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
-			}
-		}
-		elseif ($action == 'GROUP_MODIFY')
-		{
-			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_SYNCHRO_ACTIVE) && $conf->global->LDAP_SYNCHRO_ACTIVE === 'dolibarr2ldap')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
-
-				if ($result > 0)
-				{
-					if (empty($object->oldcopy) || ! is_object($object->oldcopy))
-					{
-						dol_syslog("Trigger ".$action." was called by a function that did not set previously the property ->oldcopy onto object", LOG_WARNING);
-						$object->oldcopy = clone $object;
+					// Avoid Ldap error due to empty member
+					if (isset($info['member']) && empty($info['member'])) {
+						unset($info['member']);
 					}
 
-					$oldinfo=$object->oldcopy->_load_ldap_info();
-					$olddn=$object->oldcopy->_load_ldap_dn($oldinfo);
+					$result = $ldap->add($dn, $info, $user);
+				}
+
+				if ($ldap->serverType == "activedirectory") {
+					$info['sAMAccountName'] = $object->name;
+				}
+
+				if ($result < 0) {
+					$this->error = "ErrorLDAP ".$ldap->error;
+				}
+			}
+		} elseif ($action == 'USERGROUP_MODIFY') {
+			'@phan-var-force UserGroup $object'; // Seems to suppose this object kind
+			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
+			if (getDolGlobalString('LDAP_SYNCHRO_ACTIVE') && getDolGlobalInt('LDAP_SYNCHRO_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
+
+				if ($result > 0) {
+					if (empty($object->oldcopy) || !is_object($object->oldcopy)) {
+						dol_syslog("Trigger ".$action." was called by a function that did not set previously the property ->oldcopy onto object", LOG_WARNING);
+						$object->oldcopy = clone $object;  // @phan-suppress-current-line PhanTypeMismatchProperty
+					}
+
+					$oldinfo = $object->oldcopy->_load_ldap_info();
+					$olddn = $object->oldcopy->_load_ldap_dn($oldinfo);
 
 					// Verify if entry exist
-					$container=$object->oldcopy->_load_ldap_dn($oldinfo,1);
-					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo,2).")";
-					$records=$ldap->search($container,$search);
-					if (count($records) && $records['count'] == 0)
-					{
+					$container = $object->oldcopy->_load_ldap_dn($oldinfo, 1);
+					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo, 2).")";
+					$records = $ldap->search($container, $search);
+					if (count($records) && $records['count'] == 0) {
 						$olddn = '';
 					}
 
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					$result=$ldap->update($dn,$info,$user,$olddn);
+					$result = $ldap->update($dn, $info, $user, $olddn);
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result < 0) {
+					$this->error = "ErrorLDAP ".$ldap->error;
+				}
 			}
-		}
-		elseif ($action == 'GROUP_DELETE')
-		{
+		} elseif ($action == 'USERGROUP_DELETE') {
+			'@phan-var-force UserGroup $object'; // Seems to suppose this object kind
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_SYNCHRO_ACTIVE) && $conf->global->LDAP_SYNCHRO_ACTIVE === 'dolibarr2ldap')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+			if (getDolGlobalString('LDAP_SYNCHRO_ACTIVE') && getDolGlobalInt('LDAP_SYNCHRO_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+				if ($result > 0) {
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					$result=$ldap->delete($dn);
+					$result = $ldap->delete($dn);
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result < 0) {
+					$this->error = "ErrorLDAP ".$ldap->error;
+				}
 			}
-		}
-
-		// Contacts
-		elseif ($action == 'CONTACT_CREATE')
-		{
+		} elseif ($action == 'CONTACT_CREATE') {
+			'@phan-var-force Contact $object'; // Seems to suppose this object kind
+			// Contacts
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_CONTACT_ACTIVE))
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+			if (getDolGlobalString('LDAP_CONTACT_ACTIVE')) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+				if ($result > 0) {
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					$result=$ldap->add($dn,$info,$user);
+					$result = $ldap->add($dn, $info, $user);
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result < 0) {
+					$this->error = "ErrorLDAP ".$ldap->error;
+				}
 			}
-		}
-		elseif ($action == 'CONTACT_MODIFY')
-		{
+		} elseif ($action == 'CONTACT_MODIFY') {
+			'@phan-var-force Contact $object'; // Seems to suppose this object kind
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_CONTACT_ACTIVE))
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+			if (getDolGlobalString('LDAP_CONTACT_ACTIVE')) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					if (empty($object->oldcopy) || ! is_object($object->oldcopy))
-					{
+				if ($result > 0) {
+					if (empty($object->oldcopy) || !is_object($object->oldcopy)) {
 						dol_syslog("Trigger ".$action." was called by a function that did not set previously the property ->oldcopy onto object", LOG_WARNING);
-						$object->oldcopy = clone $object;
+						$object->oldcopy = clone $object;  // @phan-suppress-current-line PhanTypeMismatchProperty
 					}
 
-					$oldinfo=$object->oldcopy->_load_ldap_info();
-					$olddn=$object->oldcopy->_load_ldap_dn($oldinfo);
+					$oldinfo = $object->oldcopy->_load_ldap_info();
+					$olddn = $object->oldcopy->_load_ldap_dn($oldinfo);
 
 					// Verify if entry exist
-					$container=$object->oldcopy->_load_ldap_dn($oldinfo,1);
-					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo,2).")";
-					$records=$ldap->search($container,$search);
-					if (count($records) && $records['count'] == 0)
-					{
+					$container = $object->oldcopy->_load_ldap_dn($oldinfo, 1);
+					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo, 2).")";
+					$records = $ldap->search($container, $search);
+					if (count($records) && $records['count'] == 0) {
 						$olddn = '';
 					}
 
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					$result=$ldap->update($dn,$info,$user,$olddn);
+					$result = $ldap->update($dn, $info, $user, $olddn);
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result < 0) {
+					$this->error = "ErrorLDAP ".$ldap->error;
+				}
 			}
-		}
-		elseif ($action == 'CONTACT_DELETE')
-		{
+		} elseif ($action == 'CONTACT_DELETE') {
+			'@phan-var-force Contact $object'; // Seems to suppose this object kind
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_CONTACT_ACTIVE))
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+			if (getDolGlobalString('LDAP_CONTACT_ACTIVE')) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+				if ($result > 0) {
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					$result=$ldap->delete($dn);
+					$result = $ldap->delete($dn);
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result < 0) {
+					$this->error = "ErrorLDAP ".$ldap->error;
+				}
 			}
-		}
-
-		// Members
-		elseif ($action == 'MEMBER_CREATE')
-		{
+		} elseif ($action == 'MEMBER_CREATE') {
+			'@phan-var-force Adherent $object'; // Seems to suppose this object kind
+			// Members
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_MEMBER_ACTIVE) && (string) $conf->global->LDAP_MEMBER_ACTIVE == '1')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+			if (getDolGlobalString('LDAP_MEMBER_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_ACTIVE') == Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+				if ($result > 0) {
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					$result=$ldap->add($dn,$info,$user);
+					$result = $ldap->add($dn, $info, $user);
 
 					// For member type
-					if (! empty($conf->global->LDAP_MEMBER_TYPE_ACTIVE) && (string) $conf->global->LDAP_MEMBER_TYPE_ACTIVE == '1')
-					{
-						$membertype=new AdherentType($this->db);
-						if ($object->typeid > 0)
-						{
+					if (getDolGlobalString('LDAP_MEMBER_TYPE_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_TYPE_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+						if ($object->typeid > 0) {
+							require_once DOL_DOCUMENT_ROOT."/adherents/class/adherent_type.class.php";
+							$membertype = new AdherentType($this->db);
 							$membertype->fetch($object->typeid);
 							$membertype->listMembersForMemberType('', 1);
 
-							$oldinfo=$membertype->_load_ldap_info();
-							$olddn=$membertype->_load_ldap_dn($oldinfo);
+							$oldinfo = $membertype->_load_ldap_info();
+							$olddn = $membertype->_load_ldap_dn($oldinfo);
 
 							// Verify if entry exist
-							$container=$membertype->_load_ldap_dn($oldinfo,1);
-							$search = "(".$membertype->_load_ldap_dn($oldinfo,2).")";
-							$records=$ldap->search($container,$search);
-							if (count($records) && $records['count'] == 0)
-							{
+							$container = $membertype->_load_ldap_dn($oldinfo, 1);
+							$search = "(".$membertype->_load_ldap_dn($oldinfo, 2).")";
+							$records = $ldap->search($container, $search);
+							if (count($records) && $records['count'] == 0) {
 								$olddn = '';
 							}
 
-							$info=$membertype->_load_ldap_info();    // Contains all members, included the new one (insert already done before trigger call)
-							$dn=$membertype->_load_ldap_dn($info);
+							$info = $membertype->_load_ldap_info(); // Contains all members, included the new one (insert already done before trigger call)
+							$dn = $membertype->_load_ldap_dn($info);
 
-							$result=$ldap->update($dn,$info,$user,$olddn);
+							$result = $ldap->update($dn, $info, $user, $olddn);
 						}
 					}
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result < 0) {
+					$this->error = "ErrorLDAP ".$ldap->error;
+				}
 			}
-		}
-		elseif ($action == 'MEMBER_VALIDATE')
-		{
+		} elseif ($action == 'MEMBER_VALIDATE') {
+			'@phan-var-force UserGroup $object'; // Seems to suppose this object kind
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_MEMBER_ACTIVE) && (string) $conf->global->LDAP_MEMBER_ACTIVE == '1')
-			{
+			if (getDolGlobalString('LDAP_MEMBER_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_ACTIVE') == Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
 				// If status field is setup to be synchronized
-				if (! empty($conf->global->LDAP_FIELD_MEMBER_STATUS))
-				{
-					$ldap=new Ldap();
-					$result=$ldap->connect_bind();
+				if (getDolGlobalString('LDAP_FIELD_MEMBER_STATUS')) {
+					$ldap = new Ldap();
+					$result = $ldap->connectBind();
 
-					if ($result > 0)
-					{
-						$info=$object->_load_ldap_info();
-						$dn=$object->_load_ldap_dn($info);
-						$olddn=$dn;	// We know olddn=dn as we change only status
+					if ($result > 0) {
+						$info = $object->_load_ldap_info();
+						$dn = $object->_load_ldap_dn($info);
+						$olddn = $dn; // We know olddn=dn as we change only status
 
-						$result=$ldap->update($dn,$info,$user,$olddn);
+						$result = $ldap->update($dn, $info, $user, $olddn);
 					}
 
-					if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+					if ($result < 0) {
+						$this->error = "ErrorLDAP ".$ldap->error;
+					}
 				}
 			}
-		}
-		elseif ($action == 'MEMBER_SUBSCRIPTION')
-		{
+		} elseif ($action == 'MEMBER_SUBSCRIPTION') {
+			'@phan-var-force Adherent|User $object'; // Seems to suppose this object type
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_MEMBER_ACTIVE) && (string) $conf->global->LDAP_MEMBER_ACTIVE == '1')
-			{
+			if (getDolGlobalString('LDAP_MEMBER_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_ACTIVE') == Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
 				// If subscriptions fields are setup to be synchronized
-				if ($conf->global->LDAP_FIELD_MEMBER_FIRSTSUBSCRIPTION_DATE
-					|| $conf->global->LDAP_FIELD_MEMBER_FIRSTSUBSCRIPTION_AMOUNT
-					|| $conf->global->LDAP_FIELD_MEMBER_LASTSUBSCRIPTION_DATE
-					|| $conf->global->LDAP_FIELD_MEMBER_LASTSUBSCRIPTION_AMOUNT
-					|| $conf->global->LDAP_FIELD_MEMBER_END_LASTSUBSCRIPTION)
-				{
-					$ldap=new Ldap();
-					$result=$ldap->connect_bind();
+				if (getDolGlobalString('LDAP_FIELD_MEMBER_FIRSTSUBSCRIPTION_DATE')
+					|| getDolGlobalString('LDAP_FIELD_MEMBER_FIRSTSUBSCRIPTION_AMOUNT')
+					|| getDolGlobalString('LDAP_FIELD_MEMBER_LASTSUBSCRIPTION_DATE')
+					|| getDolGlobalString('LDAP_FIELD_MEMBER_LASTSUBSCRIPTION_AMOUNT')
+					|| getDolGlobalString('LDAP_FIELD_MEMBER_END_LASTSUBSCRIPTION')) {
+					$ldap = new Ldap();
+					$result = $ldap->connectBind();
 
-					if ($result > 0)
-					{
-						$info=$object->_load_ldap_info();
-						$dn=$object->_load_ldap_dn($info);
-						$olddn=$dn;	// We know olddn=dn as we change only subscriptions
+					if ($result > 0) {
+						$info = $object->_load_ldap_info();
+						$dn = $object->_load_ldap_dn($info);
+						$olddn = $dn; // We know olddn=dn as we change only subscriptions
 
-						$result=$ldap->update($dn,$info,$user,$olddn);
+						$result = $ldap->update($dn, $info, $user, $olddn);
 					}
 
-					if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+					if ($result < 0) {
+						$this->error = "ErrorLDAP ".$ldap->error;
+					}
 				}
 			}
-		}
-		elseif ($action == 'MEMBER_MODIFY')
-		{
+		} elseif ($action == 'MEMBER_MODIFY') {
+			'@phan-var-force Adherent|User $object'; // Seems to suppose this object type
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_MEMBER_ACTIVE) && (string) $conf->global->LDAP_MEMBER_ACTIVE == '1')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+			if (getDolGlobalString('LDAP_MEMBER_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_ACTIVE') == Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					if (empty($object->oldcopy) || ! is_object($object->oldcopy))
-					{
+				if ($result > 0) {
+					if (empty($object->oldcopy) || !is_object($object->oldcopy)) {
 						dol_syslog("Trigger ".$action." was called by a function that did not set previously the property ->oldcopy onto object", LOG_WARNING);
-						$object->oldcopy = clone $object;
+						$object->oldcopy = clone $object;  // @phan-suppress-current-line PhanTypeMismatchProperty
 					}
 
-					$oldinfo=$object->oldcopy->_load_ldap_info();
-					$olddn=$object->oldcopy->_load_ldap_dn($oldinfo);
+					if (!method_exists($object->oldcopy, '_load_ldap_info')) {
+						dol_syslog("Trigger ".$action." was called by a function that did not set previously the method ->_load_ldap_info onto object", LOG_WARNING);
+						$object->oldcopy = clone $object; // @phan-suppress-current-line PhanTypeMismatchProperty
+					}
+
+					$oldinfo = $object->oldcopy->_load_ldap_info();
+					$olddn = $object->oldcopy->_load_ldap_dn($oldinfo);
 
 					// Verify if entry exist
-					$container=$object->oldcopy->_load_ldap_dn($oldinfo,1);
-					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo,2).")";
-					$records=$ldap->search($container,$search);
-					if (count($records) && $records['count'] == 0)
-					{
+					$container = $object->oldcopy->_load_ldap_dn($oldinfo, 1);
+					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo, 2).")";
+					$records = $ldap->search($container, $search);
+					if (count($records) && $records['count'] == 0) {
 						$olddn = '';
 					}
 
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
-					$newrdn=$object->_load_ldap_dn($info,2);
-					$newparent=$object->_load_ldap_dn($info,1);
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
+					$newrdn = $object->_load_ldap_dn($info, 2);
+					$newparent = $object->_load_ldap_dn($info, 1);
 
-					$result=$ldap->update($dn,$info,$user,$olddn,$newrdn,$newparent);
+					$result = $ldap->update($dn, $info, $user, $olddn, $newrdn, $newparent);
 
 					// For member type
-					if (! empty($conf->global->LDAP_MEMBER_TYPE_ACTIVE) && (string) $conf->global->LDAP_MEMBER_TYPE_ACTIVE == '1')
-					{
+					if (getDolGlobalString('LDAP_MEMBER_TYPE_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_TYPE_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+						require_once DOL_DOCUMENT_ROOT."/adherents/class/adherent_type.class.php";
+
 						/*
 						 * Change member info
 						 */
-						$newmembertype=new AdherentType($this->db);
+						$newmembertype = new AdherentType($this->db);
 						$newmembertype->fetch($object->typeid);
 						$newmembertype->listMembersForMemberType('', 1);
 
-						$oldinfo=$newmembertype->_load_ldap_info();
-						$olddn=$newmembertype->_load_ldap_dn($oldinfo);
+						$oldinfo = $newmembertype->_load_ldap_info();
+						$olddn = $newmembertype->_load_ldap_dn($oldinfo);
 
 						// Verify if entry exist
-						$container=$newmembertype->_load_ldap_dn($oldinfo,1);
-						$search = "(".$newmembertype->_load_ldap_dn($oldinfo,2).")";
-						$records=$ldap->search($container,$search);
-						if (count($records) && $records['count'] == 0)
-						{
+						$container = $newmembertype->_load_ldap_dn($oldinfo, 1);
+						$search = "(".$newmembertype->_load_ldap_dn($oldinfo, 2).")";
+						$records = $ldap->search($container, $search);
+						if (count($records) && $records['count'] == 0) {
 							$olddn = '';
 						}
 
-						$info=$newmembertype->_load_ldap_info();    // Contains all members, included the new one (insert already done before trigger call)
-						$dn=$newmembertype->_load_ldap_dn($info);
+						$info = $newmembertype->_load_ldap_info(); // Contains all members, included the new one (insert already done before trigger call)
+						$dn = $newmembertype->_load_ldap_dn($info);
 
-						$result=$ldap->update($dn,$info,$user,$olddn);
+						$result = $ldap->update($dn, $info, $user, $olddn);
 
-						if ($object->oldcopy->typeid != $object->typeid)
-						{
+						if ($object->oldcopy->typeid != $object->typeid) {
 							/*
 							 * Remove member in old member type
 							 */
-							$oldmembertype=new AdherentType($this->db);
+							$oldmembertype = new AdherentType($this->db);
 							$oldmembertype->fetch($object->oldcopy->typeid);
 							$oldmembertype->listMembersForMemberType('', 1);
 
-							$oldinfo=$oldmembertype->_load_ldap_info();
-							$olddn=$oldmembertype->_load_ldap_dn($oldinfo);
+							$oldinfo = $oldmembertype->_load_ldap_info();
+							$olddn = $oldmembertype->_load_ldap_dn($oldinfo);
 
 							// Verify if entry exist
-							$container=$oldmembertype->_load_ldap_dn($oldinfo,1);
-							$search = "(".$oldmembertype->_load_ldap_dn($oldinfo,2).")";
-							$records=$ldap->search($container,$search);
-							if (count($records) && $records['count'] == 0)
-							{
+							$container = $oldmembertype->_load_ldap_dn($oldinfo, 1);
+							$search = "(".$oldmembertype->_load_ldap_dn($oldinfo, 2).")";
+							$records = $ldap->search($container, $search);
+							if (count($records) && $records['count'] == 0) {
 								$olddn = '';
 							}
 
-							$info=$oldmembertype->_load_ldap_info();    // Contains all members, included the new one (insert already done before trigger call)
-							$dn=$oldmembertype->_load_ldap_dn($info);
+							$info = $oldmembertype->_load_ldap_info(); // Contains all members, included the new one (insert already done before trigger call)
+							$dn = $oldmembertype->_load_ldap_dn($info);
 
-							$result=$ldap->update($dn,$info,$user,$olddn);
+							$result = $ldap->update($dn, $info, $user, $olddn);
 						}
 					}
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result <= 0) {
+					$this->errors[] = "ErrorLDAP ".$ldap->error;
+				}
 			}
-		}
-		elseif ($action == 'MEMBER_NEW_PASSWORD')
-		{
+		} elseif ($action == 'MEMBER_NEW_PASSWORD') {
+			'@phan-var-force Adherent|User $object'; // Seems to suppose this object type
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_MEMBER_ACTIVE) && (string) $conf->global->LDAP_MEMBER_ACTIVE == '1')
-			{
+			if (getDolGlobalString('LDAP_MEMBER_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_ACTIVE') == Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
 				// If password field is setup to be synchronized
-				if ($conf->global->LDAP_FIELD_PASSWORD || $conf->global->LDAP_FIELD_PASSWORD_CRYPTED)
-				{
-					$ldap=new Ldap();
-					$result=$ldap->connect_bind();
+				if (getDolGlobalString('LDAP_FIELD_PASSWORD') || getDolGlobalString('LDAP_FIELD_PASSWORD_CRYPTED')) {
+					$ldap = new Ldap();
+					$result = $ldap->connectBind();
 
-					if ($result > 0)
-					{
-						$info=$object->_load_ldap_info();
-						$dn=$object->_load_ldap_dn($info);
-						$olddn=$dn;	// We know olddn=dn as we change only password
+					if ($result > 0) {
+						$info = $object->_load_ldap_info();
+						$dn = $object->_load_ldap_dn($info);
+						$olddn = $dn; // We know olddn=dn as we change only password
 
-						$result=$ldap->update($dn,$info,$user,$olddn);
+						$result = $ldap->update($dn, $info, $user, $olddn);
 					}
 
-					if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+					if ($result <= 0) {
+						$this->errors[] = "ErrorLDAP ".$ldap->error;
+					}
 				}
 			}
-		}
-		elseif ($action == 'MEMBER_RESILIATE')
-		{
+		} elseif ($action == 'MEMBER_RESILIATE') {
+			'@phan-var-force Adherent|User $object'; // Seems to suppose this object type
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_MEMBER_ACTIVE) && (string) $conf->global->LDAP_MEMBER_ACTIVE == '1')
-			{
+			if (getDolGlobalString('LDAP_MEMBER_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_ACTIVE') == Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
 				// If status field is setup to be synchronized
-				if (! empty($conf->global->LDAP_FIELD_MEMBER_STATUS))
-				{
-					$ldap=new Ldap();
-					$result=$ldap->connect_bind();
+				if (getDolGlobalString('LDAP_FIELD_MEMBER_STATUS')) {
+					$ldap = new Ldap();
+					$result = $ldap->connectBind();
 
-					if ($result > 0)
-					{
-						$info=$object->_load_ldap_info();
-						$dn=$object->_load_ldap_dn($info);
-						$olddn=$dn;	// We know olddn=dn as we change only status
+					if ($result > 0) {
+						$info = $object->_load_ldap_info();
+						$dn = $object->_load_ldap_dn($info);
+						$olddn = $dn; // We know olddn=dn as we change only status
 
-						$result=$ldap->update($dn,$info,$user,$olddn);
+						$result = $ldap->update($dn, $info, $user, $olddn);
 					}
 
-					if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+					if ($result <= 0) {
+						$this->errors[] = "ErrorLDAP ".$ldap->error;
+					}
 				}
 			}
-		}
-		elseif ($action == 'MEMBER_DELETE')
-		{
+		} elseif ($action == 'MEMBER_DELETE') {
+			'@phan-var-force Adherent|User $object'; // Seems to suppose this object type
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_MEMBER_ACTIVE) && (string) $conf->global->LDAP_MEMBER_ACTIVE == '1')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+			if (getDolGlobalString('LDAP_MEMBER_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_ACTIVE') == Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+				if ($result > 0) {
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					$result=$ldap->delete($dn);
+					$result = $ldap->delete($dn);
 
 					// For member type
-					if (! empty($conf->global->LDAP_MEMBER_TYPE_ACTIVE) && (string) $conf->global->LDAP_MEMBER_TYPE_ACTIVE == '1')
-					{
-						if ($object->typeid > 0)
-						{
+					if (getDolGlobalString('LDAP_MEMBER_TYPE_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_TYPE_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+						if ($object->typeid > 0) {
+							require_once DOL_DOCUMENT_ROOT."/adherents/class/adherent_type.class.php";
+
 							/*
 							 * Remove member in member type
 							 */
-							$membertype=new AdherentType($this->db);
+							$membertype = new AdherentType($this->db);
 							$membertype->fetch($object->typeid);
-							$membertype->listMembersForMemberType('a.rowid != ' . $object->id, 1); // remove deleted member from the list
+							$membertype->listMembersForMemberType('a.rowid != '.$object->id, 1); // remove deleted member from the list
 
-							$oldinfo=$membertype->_load_ldap_info();
-							$olddn=$membertype->_load_ldap_dn($oldinfo);
+							$oldinfo = $membertype->_load_ldap_info();
+							$olddn = $membertype->_load_ldap_dn($oldinfo);
 
 							// Verify if entry exist
-							$container=$membertype->_load_ldap_dn($oldinfo,1);
-							$search = "(".$membertype->_load_ldap_dn($oldinfo,2).")";
-							$records=$ldap->search($container,$search);
-							if (count($records) && $records['count'] == 0)
-							{
+							$container = $membertype->_load_ldap_dn($oldinfo, 1);
+							$search = "(".$membertype->_load_ldap_dn($oldinfo, 2).")";
+							$records = $ldap->search($container, $search);
+							if (count($records) && $records['count'] == 0) {
 								$olddn = '';
 							}
 
-							$info=$membertype->_load_ldap_info();    // Contains all members, included the new one (insert already done before trigger call)
-							$dn=$membertype->_load_ldap_dn($info);
+							$info = $membertype->_load_ldap_info(); // Contains all members, included the new one (insert already done before trigger call)
+							$dn = $membertype->_load_ldap_dn($info);
 
-							$result=$ldap->update($dn,$info,$user,$olddn);
+							$result = $ldap->update($dn, $info, $user, $olddn);
 						}
 					}
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result <= 0) {
+					$this->errors[] = "ErrorLDAP ".$ldap->error;
+				}
 			}
-		}
-
-		// Members types
-		elseif ($action == 'MEMBER_TYPE_CREATE')
-		{
+		} elseif ($action == 'MEMBER_TYPE_CREATE') {
+			'@phan-var-force Adherent|User $object'; // Seems to suppose this object type
+			// Member types
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_MEMBER_TYPE_ACTIVE) && (string) $conf->global->LDAP_MEMBER_TYPE_ACTIVE == '1')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+			if (getDolGlobalString('LDAP_MEMBER_TYPE_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_TYPE_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+				if ($result > 0) {
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
 					// Get a gid number for objectclass PosixGroup
-					if (in_array('posixGroup',$info['objectclass'])) {
+					if (in_array('posixGroup', $info['objectclass'])) {
 						$info['gidNumber'] = $ldap->getNextGroupGid('LDAP_KEY_MEMBERS_TYPE');
 					}
 
-					$result=$ldap->add($dn,$info,$user);
+					$result = $ldap->add($dn, $info, $user);
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result <= 0) {
+					$this->errors[] = "ErrorLDAP ".$ldap->error;
+				}
 			}
-		}
-		elseif ($action == 'MEMBER_TYPE_MODIFY')
-		{
+		} elseif ($action == 'MEMBER_TYPE_MODIFY') {
+			'@phan-var-force Adherent|User $object'; // Seems to suppose this object type
 			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_MEMBER_TYPE_ACTIVE) && (string) $conf->global->LDAP_MEMBER_TYPE_ACTIVE == '1')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+			if (getDolGlobalString('LDAP_MEMBER_TYPE_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_TYPE_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					if (empty($object->oldcopy) || ! is_object($object->oldcopy))
-					{
+				if ($result > 0) {
+					if (empty($object->oldcopy) || !is_object($object->oldcopy)) {
 						dol_syslog("Trigger ".$action." was called by a function that did not set previously the property ->oldcopy onto object", LOG_WARNING);
-						$object->oldcopy = clone $object;
+						$object->oldcopy = clone $object;  // @phan-suppress-current-line PhanTypeMismatchProperty
 					}
 
 					$object->oldcopy->listMembersForMemberType('', 1);
 
-					$oldinfo=$object->oldcopy->_load_ldap_info();
-					$olddn=$object->oldcopy->_load_ldap_dn($oldinfo);
+					$oldinfo = $object->oldcopy->_load_ldap_info();
+					$olddn = $object->oldcopy->_load_ldap_dn($oldinfo);
 
 					// Verify if entry exist
-					$container=$object->oldcopy->_load_ldap_dn($oldinfo,1);
-					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo,2).")";
-					$records=$ldap->search($container,$search);
-					if (count($records) && $records['count'] == 0)
-					{
+					$container = $object->oldcopy->_load_ldap_dn($oldinfo, 1);
+					$search = "(".$object->oldcopy->_load_ldap_dn($oldinfo, 2).")";
+					$records = $ldap->search($container, $search);
+					if (count($records) && $records['count'] == 0) {
 						$olddn = '';
 					}
 
 					$object->listMembersForMemberType('', 1);
 
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					$result=$ldap->update($dn,$info,$user,$olddn);
+					$result = $ldap->update($dn, $info, $user, $olddn);
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result <= 0) {
+					$this->errors[] = "ErrorLDAP ".$ldap->error;
+				}
 			}
-		}
-		elseif ($action == 'MEMBER_TYPE_DELETE')
-		{
-			dol_syslog("Trigger '".$this->name."' for action '$action' launched by ".__FILE__.". id=".$object->id);
-			if (! empty($conf->global->LDAP_MEMBER_TYPE_ACTIVE) && (string) $conf->global->LDAP_MEMBER_TYPE_ACTIVE == '1')
-			{
-				$ldap=new Ldap();
-				$result=$ldap->connect_bind();
+		} elseif ($action == 'MEMBER_TYPE_DELETE') {
+			'@phan-var-force Adherent|User $object'; // Seems to suppose this object type
+			if (getDolGlobalString('LDAP_MEMBER_TYPE_ACTIVE') && getDolGlobalInt('LDAP_MEMBER_TYPE_ACTIVE') === Ldap::SYNCHRO_DOLIBARR_TO_LDAP) {
+				$ldap = new Ldap();
+				$result = $ldap->connectBind();
 
-				if ($result > 0)
-				{
-					$info=$object->_load_ldap_info();
-					$dn=$object->_load_ldap_dn($info);
+				if ($result > 0) {
+					$info = $object->_load_ldap_info();
+					$dn = $object->_load_ldap_dn($info);
 
-					$result=$ldap->delete($dn);
+					$result = $ldap->delete($dn);
 				}
 
-				if ($result < 0) $this->error="ErrorLDAP ".$ldap->error;
+				if ($result <= 0) {
+					$this->errors[] = "ErrorLDAP ".$ldap->error;
+				}
 			}
 		}
 
 		return $result;
 	}
-
 }

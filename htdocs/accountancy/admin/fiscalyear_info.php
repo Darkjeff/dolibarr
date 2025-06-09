@@ -1,5 +1,6 @@
 <?php
-/* Copyright (C) 2014-2016	Alexandre Spangaro	<aspangaro@zendsi.com>
+/* Copyright (C) 2014-2024	Alexandre Spangaro	<aspangaro@easya.solutions>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,35 +13,50 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, seehttp://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
  * \file	    htdocs/accountancy/admin/fiscalyear_info.php
- * \ingroup     Advanced accountancy
+ * \ingroup     Accountancy (Double entries)
  * \brief	    Page to show info of a fiscal year
  */
 
+// Load Dolibarr environment
 require '../../main.inc.php';
-require_once DOL_DOCUMENT_ROOT . '/core/lib/fiscalyear.lib.php';
-require_once DOL_DOCUMENT_ROOT . '/core/lib/functions2.lib.php';
-require_once DOL_DOCUMENT_ROOT . '/core/class/fiscalyear.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/fiscalyear.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/fiscalyear.class.php';
 
-$langs->load("admin");
-$langs->load("compta");
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+
+// Load translation files required by the page
+$langs->loadLangs(array("admin", "compta"));
 
 // Security check
-if ($user->societe_id > 0)
+if ($user->socid > 0) {
 	accessforbidden();
-if (! $user->rights->accounting->fiscalyear)
+}
+if (!$user->hasRight('accounting', 'fiscalyear', 'write')) {
 	accessforbidden();
+}
 
-$id = GETPOST('id', 'int');
+$id = GETPOSTINT('id');
+
 
 // View
-$title = $langs->trans("Fiscalyear") . " - " . $langs->trans("Info");
-$helpurl = "";
-llxHeader("",$title,$helpurl);
+
+$title = $langs->trans("Fiscalyear")." - ".$langs->trans("Info");
+
+$help_url = 'EN:Module_Double_Entry_Accounting#Setup|FR:Module_Comptabilit&eacute;_en_Partie_Double#Configuration';
+
+llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-accountancy page-admin_fiscalyear_info');
 
 if ($id) {
 	$object = new Fiscalyear($db);
@@ -49,14 +65,25 @@ if ($id) {
 
 	$head = fiscalyear_prepare_head($object);
 
-	dol_fiche_head($head, 'info', $langs->trans("Fiscalyear"), 0, 'cron');
+	print dol_get_fiche_head($head, 'info', $langs->trans("Fiscalyear"), -1, $object->picto);
 
-	print '<table width="100%"><tr><td>';
-	dol_print_object_info($object);
-	print '</td></tr></table>';
+	$linkback = '<a href="'.DOL_URL_ROOT.'/accountancy/admin/fiscalyear.php?restore_lastsearch_values=1">'.$langs->trans("BackToList").'</a>';
+
+	$morehtmlref = '';
+
+	dol_banner_tab($object, 'ref', $linkback, 1, 'ref', 'ref', $morehtmlref);
+
+	print '<div class="fichecenter">';
+	print '<div class="underbanner clearboth"></div>';
+
+	$object->info($object->id);
+	dol_print_object_info($object, 1);
 
 	print '</div>';
+
+	print dol_get_fiche_end();
 }
 
+// End of page
 llxFooter();
 $db->close();

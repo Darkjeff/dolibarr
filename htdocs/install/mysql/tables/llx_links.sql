@@ -12,10 +12,10 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 --
--- Actions commerciales
+-- Table to store external URL links to documents
 -- ========================================================================
 
 create table llx_links
@@ -26,5 +26,7 @@ create table llx_links
   url               VARCHAR(255) NOT NULL,          -- link url
   label             VARCHAR(255) NOT NULL,          -- link label
   objecttype        VARCHAR(255) NOT NULL,          -- object type in Dolibarr
-  objectid          INTEGER NOT NULL
+  objectid          INTEGER NOT NULL,
+  share				varchar(128) NULL,				-- contains hash for file sharing
+  share_pass		varchar(32) NULL				-- password to access the file (encoded with dolEncrypt)
 )ENGINE=innodb;

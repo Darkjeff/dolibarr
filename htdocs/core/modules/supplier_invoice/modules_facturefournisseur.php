@@ -1,8 +1,9 @@
 <?php
-/* Copyright (C) 2010	Juanjo Menent	<jmenent@2byte.es>
- * Copyright (C) 2012	Regis Houssin	<regis.houssin@capnetworks.com>
- * Copyright (C) 2013-2016   Philippe Grand  <philippe.grand@atoo-net.com>
- * Copyright (C) 2014   Marcos García   <marcosgdf@gmail.com>
+/* Copyright (C) 2010       Juanjo Menent       <jmenent@2byte.es>
+ * Copyright (C) 2012       Regis Houssin       <regis.houssin@inodbox.com>
+ * Copyright (C) 2013-2016  Philippe Grand      <philippe.grand@atoo-net.com>
+ * Copyright (C) 2014       Marcos García       <marcosgdf@gmail.com>
+ * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,18 +16,19 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * or see http://www.gnu.org/
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * or see https://www.gnu.org/
  */
 
 /**
  *		\file       htdocs/core/modules/supplier_invoice/modules_facturefournisseur.php
- *      \ingroup    facture fournisseur
+ *      \ingroup    invoice fournisseur
  *      \brief      File that contains parent class for supplier invoices models
  *					and parent class for supplier invoices numbering models
  */
 require_once DOL_DOCUMENT_ROOT.'/core/class/commondocgenerator.class.php';
-require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';	// required for use by classes that inherit
+require_once DOL_DOCUMENT_ROOT.'/core/class/commonnumrefgenerator.class.php';
+require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php'; // required for use by classes that inherit
 
 
 /**
@@ -34,104 +36,62 @@ require_once DOL_DOCUMENT_ROOT.'/compta/bank/class/account.class.php';	// requir
  */
 abstract class ModelePDFSuppliersInvoices extends CommonDocGenerator
 {
-	var $error='';
-
-
+	// phpcs:disable PEAR.NamingConventions.ValidFunctionName.ScopeNotCamelCaps
 	/**
-	 *  Return list of active generation models
+	 *  Return list of active generation modules
 	 *
-     *  @param	DoliDB	$db     			Database handler
-     *  @param  integer	$maxfilenamelength  Max length of value to show
-     *  @return	array						List of numbers
+	 *  @param  DoliDB  	$db                 Database handler
+	 *  @param  int<0,max>	$maxfilenamelength  Max length of value to show
+	 *  @return string[]|int<-1,0>				List of templates
 	 */
-	static function liste_modeles($db,$maxfilenamelength=0)
+	public static function liste_modeles($db, $maxfilenamelength = 0)
 	{
-		global $conf;
-
-		$type='invoice_supplier';
-		$liste=array();
+		// phpcs:enable
+		$type = 'invoice_supplier';
+		$list = array();
 
 		include_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
-		$liste=getListOfModels($db,$type,$maxfilenamelength);
+		$list = getListOfModels($db, $type, $maxfilenamelength);
 
-		return $liste;
+		return $list;
 	}
 
+
+	// phpcs:disable PEAR.NamingConventions.ValidFunctionName.ScopeNotCamelCaps
+	/**
+	 *  Function to build a document on disk using the generic odt module.
+	 *
+	 *  @param		FactureFournisseur	$object				Object to generate
+	 *  @param		Translate			$outputlangs		Lang output object
+	 *  @param		string				$srctemplatepath	Full path of source filename for generator using a template file
+	 *  @param		int<0,1>			$hidedetails		Do not show line details
+	 *  @param		int<0,1>			$hidedesc			Do not show desc
+	 *  @param		int<0,1>			$hideref			Do not show ref
+	 *  @return		int<-1,1>								1=OK, <=0=KO
+	 */
+	abstract public function write_file($object, $outputlangs, $srctemplatepath = '', $hidedetails = 0, $hidedesc = 0, $hideref = 0);
+	// phpcs:enable
 }
 
 /**
  *	Parent Class of numbering models of suppliers invoices references
  */
-abstract class ModeleNumRefSuppliersInvoices
+abstract class ModeleNumRefSuppliersInvoices extends CommonNumRefGenerator
 {
-	var $error='';
-
-	/**  Return if a model can be used or not
+	/**
+	 * Return next value
 	 *
-	 *   @return	boolean     true if model can be used
+	 * @param	?Societe			$objsoc		Object third party
+	 * @param  	?FactureFournisseur	$object		Object invoice
+	 * @param   string				$mode		'next' for next value or 'last' for last value
+	 * @return 	string|int<-1,0>				Value if OK, <=0 if KO
 	 */
-	function isEnabled()
-	{
-		return true;
-	}
+	abstract public function getNextValue($objsoc, $object, $mode = 'next');
 
-	/**  Returns the default description of the model numbering
+	/**
+	 *  Return an example of numbering
 	 *
-	 *   @return    string      Description Text
+	 *  @return     string      Example
 	 */
-	function info()
-	{
-		global $langs;
-		$langs->load("invoices");
-		return $langs->trans("NoDescription");
-	}
-
-	/**   Returns a numbering example
-	 *
-	 *    @return   string      Example
-	 */
-	function getExample()
-	{
-		global $langs;
-		$langs->load("invoices");
-		return $langs->trans("NoExample");
-	}
-
-	/**  Tests if the numbers already in force in the database do not cause conflicts that would prevent this numbering.
-	 *
-	 *   @return	boolean     false if conflict, true if ok
-	 */
-	function canBeActivated()
-	{
-		return true;
-	}
-
-    /**  Returns next value assigned
-     *
-     * @param	Societe		$objsoc     Object third party
-     * @param  	Object	    $object		Object
-     * @param	string		$mode       'next' for next value or 'last' for last value
-     * @return 	string      			Value if OK, 0 if KO
-     */
-    function getNextValue($objsoc,$object,$mode)
-	{
-		global $langs;
-		return $langs->trans("NotAvailable");
-	}
-
-	/**   Returns version of the model numbering
-	 *
-	 *    @return     string      Value
-	 */
-	function getVersion()
-	{
-		global $langs;
-		$langs->load("admin");
-
-		if ($this->version == 'development') return $langs->trans("VersionDevelopment");
-		if ($this->version == 'experimental') return $langs->trans("VersionExperimental");
-		if ($this->version == 'dolibarr') return DOL_VERSION;
-		if ($this->version) return $this->version;
-		return $langs->trans("NotAvailable");
-	}
+	abstract public function getExample();
 }

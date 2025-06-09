@@ -13,7 +13,7 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ========================================================================
 
@@ -22,6 +22,6 @@ create table llx_societe_commerciaux
   rowid         integer AUTO_INCREMENT PRIMARY KEY,
   fk_soc        integer,
   fk_user       integer,
+  fk_c_type_contact_code varchar(32) NOT NULL DEFAULT 'SALESREPTHIRD',
   import_key	varchar(14)
 )ENGINE=innodb;
-

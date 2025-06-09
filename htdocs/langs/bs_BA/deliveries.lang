@@ -1,8 +1,8 @@
 # Dolibarr language file - Source file is en_US - deliveries
 Delivery=Dostava
 DeliveryRef=Ref Delivery
-DeliveryCard=Receipt card
-DeliveryOrder=Narudžba dostave
+DeliveryCard=Delivery receipt
+DeliveryOrder=Potvrda o isporuci
 DeliveryDate=Datum dostave
 CreateDeliveryOrder=Generate delivery receipt
 DeliveryStateSaved=Delivery state saved
@@ -18,7 +18,7 @@ StatusDeliveryCanceled=Otkazan
 StatusDeliveryDraft=Nacrt
 StatusDeliveryValidated=Primljena donacija
 # merou PDF model
-NameAndSignature=Ime i potpis:
+NameAndSignature=Ime i Potpis:
 ToAndDate=Za ___________________________________ na ____/____/__________
 GoodStatusDeclaration=Primio sam robu navedenu gore u dobrom stanju.
 Deliverer=Dostavljač:
@@ -27,4 +27,7 @@ Recipient=Primalac
 ErrorStockIsNotEnough=There's not enough stock
 Shippable=Shippable
 NonShippable=Not Shippable
+ShowShippableStatus=Prikaži status za otpremu
 ShowReceiving=Show delivery receipt
+NonExistentOrder=Nepostojeći red
+StockQuantitiesAlreadyAllocatedOnPreviousLines = Količine zaliha već dodijeljene na prethodnim linijama

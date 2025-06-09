@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Copyright (C) 2002-2003 Rodolphe Quiedeville <rodolphe@quiedeville.org>
--- Copyright (C) 2005-2010 Regis Houssin        <regis.houssin@capnetworks.com>
+-- Copyright (C) 2005-2010 Regis Houssin        <regis.houssin@inodbox.com>
 -- Copyright (C) 2009      Laurent Destailleur  <eldy@users.sourceforge.net>
 -- Copyright (C) 2014      Jean-François Ferry  <jfefe@aternatik.fr>
 --
@@ -15,9 +15,12 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ============================================================================
+
+
+-- Table to manage the multilanguage of categories (label and description)
 
 create table llx_categorie_lang
 (

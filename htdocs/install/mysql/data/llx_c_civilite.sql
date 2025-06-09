@@ -3,7 +3,7 @@
 -- Copyright (C) 2004-2009 Laurent Destailleur  <eldy@users.sourceforge.net>
 -- Copyright (C) 2004      Benoit Mortier       <benoit.mortier@opensides.be>
 -- Copyright (C) 2004      Guillaume Delecourt  <guillaume.delecourt@opensides.be>
--- Copyright (C) 2005-2009 Regis Houssin        <regis.houssin@capnetworks.com>
+-- Copyright (C) 2005-2009 Regis Houssin        <regis.houssin@inodbox.com>
 -- Copyright (C) 2007 	   Patrick Raguin       <patrick.raguin@gmail.com>
 --
 -- This program is free software; you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 --
 
@@ -30,9 +30,8 @@
 -- Civilities
 --
 
-delete from llx_c_civility;
-insert into llx_c_civility (rowid, code, label, active) values (1 , 'MME',  'Madame', 1);
-insert into llx_c_civility (rowid, code, label, active) values (3 , 'MR',   'Monsieur', 1);
-insert into llx_c_civility (rowid, code, label, active) values (5 , 'MLE',  'Mademoiselle', 1);
-insert into llx_c_civility (rowid, code, label, active) values (7 , 'MTRE', 'Maître', 1);
-insert into llx_c_civility (rowid, code, label, active) values (8 , 'DR',   'Docteur', 1);
+insert into llx_c_civility (code, label, active) values ('MME',  'Madame', 1);
+insert into llx_c_civility (code, label, active) values ('MR',   'Monsieur', 1);
+insert into llx_c_civility (code, label, active) values ('MLE',  'Mademoiselle', 1);
+insert into llx_c_civility (code, label, active) values ('MTRE', 'Maître', 1);
+insert into llx_c_civility (code, label, active) values ('DR',   'Docteur', 1);

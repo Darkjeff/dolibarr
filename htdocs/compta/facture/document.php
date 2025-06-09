@@ -1,11 +1,13 @@
 <?php
-/* Copyright (C) 2003-2007 Rodolphe Quiedeville  <rodolphe@quiedeville.org>
- * Copyright (C) 2004-2016 Laurent Destailleur   <eldy@users.sourceforge.net>
- * Copyright (C) 2005      Marc Barilley / Ocebo <marc@ocebo.com>
- * Copyright (C) 2005-2011 Regis Houssin         <regis.houssin@capnetworks.com>
- * Copyright (C) 2013      Cédric Salvador       <csalvador@gpcsolutions.fr>
- * Copyright (C) 2017      Ferran Marcet       	 <fmarcet@2byte.es>
- * Copyright (C) 2017      Frédéric France       <frederic.france@netlogic.fr>
+/* Copyright (C) 2003-2007	Rodolphe Quiedeville			<rodolphe@quiedeville.org>
+ * Copyright (C) 2004-2016	Laurent Destailleur				<eldy@users.sourceforge.net>
+ * Copyright (C) 2005		Marc Barilley / Ocebo			<marc@ocebo.com>
+ * Copyright (C) 2005-2011	Regis Houssin					<regis.houssin@inodbox.com>
+ * Copyright (C) 2013		Cédric Salvador					<csalvador@gpcsolutions.fr>
+ * Copyright (C) 2017		Ferran Marcet					<fmarcet@2byte.es>
+ * Copyright (C) 2017-2024	Frédéric France					<frederic.france@free.fr>
+ * Copyright (C) 2025		Alexandre Spangaro				<alexandre@inovea-conseil.com>
+ * Copyright (C) 2025		MDW								<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,15 +20,16 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
  *	\file       htdocs/compta/facture/document.php
- *	\ingroup    facture
+ *	\ingroup    invoice
  *	\brief      Page for attached files on invoices
  */
 
+// Load Dolibarr environment
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/facture/class/facture.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/discount.class.php';
@@ -34,166 +37,182 @@ require_once DOL_DOCUMENT_ROOT.'/core/lib/invoice.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/files.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/images.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/core/class/html.formfile.class.php';
-if (! empty($conf->projet->enabled)) {
-	require_once DOL_DOCUMENT_ROOT . '/projet/class/project.class.php';
+if (isModEnabled('project')) {
+	include_once DOL_DOCUMENT_ROOT.'/projet/class/project.class.php';
 }
 
-$langs->load('propal');
-$langs->load('compta');
-$langs->load('other');
-$langs->load("bills");
-$langs->load('companies');
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
+
+// Load translation files required by the page
+$langs->loadLangs(array('propal', 'compta', 'other', 'bills', 'companies'));
 
 
-$id=(GETPOST('id','int')?GETPOST('id','int'):GETPOST('facid','int'));  // For backward compatibility
-$ref=GETPOST('ref','alpha');
-$socid=GETPOST('socid','int');
-$action=GETPOST('action','alpha');
-$confirm=GETPOST('confirm', 'alpha');
-
-// Security check
-if ($user->societe_id)
-{
-	$socid = $user->societe_id;
-}
-$result=restrictedArea($user,'facture',$id,'');
+$id = (GETPOSTINT('id') ? GETPOSTINT('id') : GETPOSTINT('facid')); // For backward compatibility
+$ref = GETPOST('ref', 'alpha');
+$socid = GETPOSTINT('socid');
+$action = GETPOST('action', 'aZ09');
+$confirm = GETPOST('confirm', 'alpha');
 
 // Get parameters
-$sortfield = GETPOST("sortfield",'alpha');
-$sortorder = GETPOST("sortorder",'alpha');
-$page = GETPOST("page",'int');
-if (empty($page) || $page == -1) { $page = 0; }     // If $page is not defined, or '' or -1
-$offset = $conf->liste_limit * $page;
+$limit = GETPOSTINT('limit') ? GETPOSTINT('limit') : $conf->liste_limit;
+$sortfield = GETPOST('sortfield', 'aZ09comma');
+$sortorder = GETPOST('sortorder', 'aZ09comma');
+$page = GETPOSTISSET('pageplusone') ? (GETPOSTINT('pageplusone') - 1) : GETPOSTINT("page");
+if (empty($page) || $page == -1) {
+	$page = 0;
+}     // If $page is not defined, or '' or -1
+$offset = $limit * $page;
 $pageprev = $page - 1;
 $pagenext = $page + 1;
-if (! $sortorder) $sortorder="ASC";
-if (! $sortfield) $sortfield="name";
+if (!$sortorder) {
+	$sortorder = "ASC";
+}
+if (!$sortfield) {
+	$sortfield = "name";
+}
 
 $object = new Facture($db);
-if ($object->fetch($id))
-{
+if ($object->fetch($id, $ref)) {
 	$object->fetch_thirdparty();
-	$upload_dir = $conf->facture->dir_output . "/" . dol_sanitizeFileName($object->ref);
+	$upload_dir = $conf->facture->dir_output."/".dol_sanitizeFileName($object->ref);
 }
+
+$permissiontoadd = $user->hasRight('facture', 'creer');
+
+// Security check
+if ($user->socid) {
+	$socid = $user->socid;
+}
+$hookmanager->initHooks(array('invoicedocument', 'globalcard'));
+$result = restrictedArea($user, 'facture', $object->id, '');
+
+$usercancreate = $user->hasRight("facture", "creer");
 
 
 /*
  * Actions
  */
 
-include_once DOL_DOCUMENT_ROOT . '/core/actions_linkedfiles.inc.php';
+$parameters = array('id' => $id);
+$reshook = $hookmanager->executeHooks('doActions', $parameters, $object, $action); // Note that $action and $object may have been modified by some hooks
+if ($reshook < 0) {
+	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
+}
+if (empty($reshook)) {
+	include DOL_DOCUMENT_ROOT.'/core/actions_linkedfiles.inc.php';
+}
 
 
 /*
  * View
  */
 
-$title = $langs->trans('InvoiceCustomer') . " - " . $langs->trans('Documents');
-$helpurl = "EN:Customers_Invoices|FR:Factures_Clients|ES:Facturas_a_clientes";
-llxHeader('', $title, $helpurl);
-
 $form = new Form($db);
 
-if ($id > 0 || ! empty($ref))
-{
-	if ($object->fetch($id,$ref) > 0)
-	{
+if (empty($object->id)) {
+	$title = $langs->trans('Documents');
+} else {
+	$title = $object->ref." - ".$langs->trans('Documents');
+}
+$help_url = "EN:Customers_Invoices|FR:Factures_Clients|ES:Facturas_a_clientes";
+
+llxHeader('', $title, $help_url);
+
+if (empty($object->id)) {
+	$langs->load('errors');
+	echo '<div class="error">'.$langs->trans("ErrorRecordNotFound").'</div>';
+
+	llxFooter();
+	exit;
+}
+
+if ($id > 0 || !empty($ref)) {
+	if ($object->fetch($id, $ref) > 0) {
 		$object->fetch_thirdparty();
 
-		$upload_dir = $conf->facture->dir_output.'/'.dol_sanitizeFileName($object->ref);
+		$upload_dir = $conf->facture->multidir_output[$object->entity].'/'.dol_sanitizeFileName($object->ref);
 
 		$head = facture_prepare_head($object);
-		dol_fiche_head($head, 'documents', $langs->trans('InvoiceCustomer'), -1, 'bill');
+		print dol_get_fiche_head($head, 'documents', $langs->trans('InvoiceCustomer'), -1, 'bill');
 
-    	$totalpaye = $object->getSommePaiement();
+		$totalpaid = $object->getSommePaiement();
 
-		// Construit liste des fichiers
-		$filearray=dol_dir_list($upload_dir,"files",0,'','(\.meta|_preview.*\.png)$',$sortfield,(strtolower($sortorder)=='desc'?SORT_DESC:SORT_ASC),1);
-		$totalsize=0;
-		foreach($filearray as $key => $file)
-		{
-			$totalsize+=$file['size'];
+		// Build file list
+		$filearray = dol_dir_list($upload_dir, "files", 0, '', '(\.meta|_preview.*\.png)$', $sortfield, (strtolower($sortorder) == 'desc' ? SORT_DESC : SORT_ASC), 1);
+		$totalsize = 0;
+		foreach ($filearray as $key => $file) {
+			$totalsize += $file['size'];
 		}
 
 
-	    // Invoice content
+		// Invoice content
 
-	    $linkback = '<a href="' . DOL_URL_ROOT . '/compta/facture/list.php?restore_lastsearch_values=1' . (! empty($socid) ? '&socid=' . $socid : '') . '">' . $langs->trans("BackToList") . '</a>';
+		$linkback = '<a href="'.DOL_URL_ROOT.'/compta/facture/list.php?restore_lastsearch_values=1'.(!empty($socid) ? '&socid='.$socid : '').'">'.$langs->trans("BackToList").'</a>';
 
-	    $morehtmlref='<div class="refidno">';
-	    // Ref customer
-	    $morehtmlref.=$form->editfieldkey("RefCustomer", 'ref_client', $object->ref_client, $object, 0, 'string', '', 0, 1);
-	    $morehtmlref.=$form->editfieldval("RefCustomer", 'ref_client', $object->ref_client, $object, 0, 'string', '', null, null, '', 1);
-	    // Thirdparty
-	    $morehtmlref.='<br>'.$langs->trans('ThirdParty') . ' : ' . $object->thirdparty->getNomUrl(1,'customer');
-	    // Project
-	    if (! empty($conf->projet->enabled))
-	    {
-	    	$langs->load("projects");
-	    	$morehtmlref.='<br>'.$langs->trans('Project') . ' ';
-	    	if ($user->rights->facture->creer)
-	    	{
-	    		if ($action != 'classify')
-	    			//$morehtmlref.='<a href="' . $_SERVER['PHP_SELF'] . '?action=classify&amp;id=' . $object->id . '">' . img_edit($langs->transnoentitiesnoconv('SetProject')) . '</a> : ';
-	    			$morehtmlref.=' : ';
-	    		if ($action == 'classify') {
-	    			//$morehtmlref.=$form->form_project($_SERVER['PHP_SELF'] . '?id=' . $object->id, $object->socid, $object->fk_project, 'projectid', 0, 0, 1, 1);
-	    			$morehtmlref.='<form method="post" action="'.$_SERVER['PHP_SELF'].'?id='.$object->id.'">';
-	    			$morehtmlref.='<input type="hidden" name="action" value="classin">';
-	    			$morehtmlref.='<input type="hidden" name="token" value="'.$_SESSION['newtoken'].'">';
-	    			$morehtmlref.=$formproject->select_projects($object->socid, $object->fk_project, 'projectid', $maxlength, 0, 1, 0, 1, 0, 0, '', 1);
-	    			$morehtmlref.='<input type="submit" class="button valignmiddle" value="'.$langs->trans("Modify").'">';
-	    			$morehtmlref.='</form>';
-	    		} else {
-	    			$morehtmlref.=$form->form_project($_SERVER['PHP_SELF'] . '?id=' . $object->id, $object->socid, $object->fk_project, 'none', 0, 0, 0, 1);
-	    		}
-	    	} else {
-	    		if (! empty($object->fk_project)) {
-	    			$proj = new Project($db);
-	    			$proj->fetch($object->fk_project);
-	    			$morehtmlref.='<a href="'.DOL_URL_ROOT.'/projet/card.php?id=' . $object->fk_project . '" title="' . $langs->trans('ShowProject') . '">';
-	    			$morehtmlref.=$proj->ref;
-	    			$morehtmlref.='</a>';
-	    		} else {
-	    			$morehtmlref.='';
-	    		}
-	    	}
-	    }
-	    $morehtmlref.='</div>';
+		$morehtmlref = '<div class="refidno">';
+		// Ref customer
+		$morehtmlref .= $form->editfieldkey("RefCustomer", 'ref_client', $object->ref_customer, $object, 0, 'string', '', 0, 1);
+		$morehtmlref .= $form->editfieldval("RefCustomer", 'ref_client', $object->ref_customer, $object, 0, 'string', '', null, null, '', 1);
+		// Thirdparty
+		$morehtmlref .= '<br>'.$object->thirdparty->getNomUrl(1, 'customer');
+		// Project
+		if (isModEnabled('project')) {
+			$langs->load("projects");
+			$morehtmlref .= '<br>';
+			if (0) {
+				$morehtmlref .= img_picto($langs->trans("Project"), 'project', 'class="pictofixedwidth"');
+				if ($action != 'classify') {
+					$morehtmlref .= '<a class="editfielda" href="'.$_SERVER['PHP_SELF'].'?action=classify&token='.newToken().'&id='.$object->id.'">'.img_edit($langs->transnoentitiesnoconv('SetProject')).'</a> ';
+				}
+				$morehtmlref .= $form->form_project($_SERVER['PHP_SELF'].'?id='.$object->id, $object->socid, (string) $object->fk_project, ($action == 'classify' ? 'projectid' : 'none'), 0, 0, 0, 1, '', 'maxwidth300');
+			} else {
+				if (!empty($object->fk_project)) {
+					$proj = new Project($db);
+					$proj->fetch($object->fk_project);
+					$morehtmlref .= $proj->getNomUrl(1);
+					if ($proj->title) {
+						$morehtmlref .= '<span class="opacitymedium"> - '.dol_escape_htmltag($proj->title).'</span>';
+					}
+				}
+			}
+		}
+		$morehtmlref .= '</div>';
 
-	    $object->totalpaye = $totalpaye;   // To give a chance to dol_banner_tab to use already paid amount to show correct status
+		$object->totalpaid = $totalpaid; // To give a chance to dol_banner_tab to use already paid amount to show correct status
 
-	    dol_banner_tab($object, 'ref', $linkback, 1, 'facnumber', 'ref', $morehtmlref, '', 0);
+		dol_banner_tab($object, 'ref', $linkback, 1, 'ref', 'ref', $morehtmlref, '', 0);
 
 		print '<div class="fichecenter">';
 		print '<div class="underbanner clearboth"></div>';
 
-		print '<table class="border" width="100%">';
+		print '<table class="border tableforfield centpercent">';
 
 		print '<tr><td class="titlefield">'.$langs->trans("NbOfAttachedFiles").'</td><td colspan="3">'.count($filearray).'</td></tr>';
-		print '<tr><td>'.$langs->trans("TotalSizeOfAttachedFiles").'</td><td colspan="3">'.dol_print_size($totalsize,1,1).'</td></tr>';
+		print '<tr><td>'.$langs->trans("TotalSizeOfAttachedFiles").'</td><td colspan="3">'.dol_print_size($totalsize, 1, 1).'</td></tr>';
 		print "</table>\n";
 
 		print "</div>\n";
 
-		dol_fiche_end();
+		print dol_get_fiche_end();
 
 		$modulepart = 'facture';
-		$permission = $user->rights->facture->creer;
-		$permtoedit = $user->rights->facture->creer;
-		$param = '&id=' . $object->id;
-		include_once DOL_DOCUMENT_ROOT . '/core/tpl/document_actions_post_headers.tpl.php';
-	}
-	else
-	{
+		$permissiontoadd = $user->hasRight('facture', 'creer');
+		$permtoedit = $user->hasRight('facture', 'creer');
+		$param = '&id='.$object->id;
+		include DOL_DOCUMENT_ROOT.'/core/tpl/document_actions_post_headers.tpl.php';
+	} else {
 		dol_print_error($db);
 	}
-}
-else
-{
+} else {
 	print $langs->trans("ErrorUnknown");
 }
 
+// End of page
 llxFooter();
-
 $db->close();

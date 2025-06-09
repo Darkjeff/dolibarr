@@ -1,7 +1,8 @@
 <?php
-/* Copyright (C) 2010-2011	Regis Houssin <regis.houssin@capnetworks.com>
+/* Copyright (C) 2010-2011	Regis Houssin <regis.houssin@inodbox.com>
  * Copyright (C) 2013		Juanjo Menent <jmenent@2byte.es>
  * Copyright (C) 2014       Marcos García <marcosgdf@gmail.com>
+ * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,48 +15,44 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 // Protection to avoid direct call of template
-if (empty($conf) || ! is_object($conf))
-{
+if (empty($conf) || !is_object($conf)) {
 	print "Error, template page can't be called as URL";
-	exit;
+	exit(1);
 }
 
-?>
 
-<!-- BEGIN PHP TEMPLATE -->
+print "<!-- BEGIN PHP TEMPLATE expensereport/tpl/linkedobjectblock.tpl.php -->\n";
 
-<?php
 
 global $user;
 
 $langs = $GLOBALS['langs'];
+'@phan-var-force Translate $langs';
 $linkedObjectBlock = $GLOBALS['linkedObjectBlock'];
+'@phan-var-force CommonObject[] $linkedObjectBlock';
 
-$var=true;
-$total=0;
-foreach($linkedObjectBlock as $key => $objectlink)
-{
-
-?>
+$var = true;
+$total = 0;
+foreach ($linkedObjectBlock as $key => $objectlink) {
+	?>
 <tr <?php echo $GLOBALS['bc'][$var]; ?> >
 	<td><?php echo $langs->trans("ExpenseReport"); ?></td>
-    <td><?php echo $objectlink->getNomUrl(1); ?></td>
-    <td></td>
-	<td align="center"><?php echo dol_print_date($objectlink->date_debut,'day'); ?></td>
-	<td align="right"><?php
-		if ($user->rights->expensereport->lire) {
-			$total = $total + $objectlink->total_ht;
-			echo price($objectlink->total_ht);
-		} ?></td>
-	<td align="right"><?php echo $objectlink->getLibStatut(3); ?></td>
-	<td align="right"><a href="<?php echo $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=dellink&dellinkid='.$key; ?>"><?php echo img_picto($langs->transnoentitiesnoconv("RemoveLink"), 'unlink'); ?></a></td>
+	<td><?php echo $objectlink->getNomUrl(1); ?></td>
+	<td></td>
+	<td class="center"><?php echo dol_print_date($objectlink->date_debut, 'day'); ?></td>
+	<td class="right"><?php
+	if ($user->hasRight('expensereport', 'lire')) {
+		$total += $objectlink->total_ht;
+		echo price($objectlink->total_ht);
+	} ?></td>
+	<td class="right"><?php echo $objectlink->getLibStatut(3); ?></td>
+	<td class="right"><a class="reposition" href="<?php echo $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=dellink&token='.newToken().'&dellinkid='.$key; ?>"><?php echo img_picto($langs->transnoentitiesnoconv("RemoveLink"), 'unlink'); ?></a></td>
 </tr>
-<?php
+	<?php
 }
-?>
 
-<!-- END PHP TEMPLATE -->
+print "<!-- END PHP TEMPLATE -->\n";

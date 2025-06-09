@@ -1,6 +1,5 @@
 -- ============================================================================
--- Copyright (C) 2007-2009	Laurent Destailleur	<eldy@users.sourceforge.net>
--- Copyright (C) 2009-2012	Regis Houssin		<regis.houssin@capnetworks.com>
+-- Copyright (C) 2024  Laurent Destailleur <eldy@users.sourceforge.net>
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -13,11 +12,9 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ============================================================================
 
-ALTER TABLE llx_categorie ADD UNIQUE INDEX uk_categorie_ref (entity, fk_parent, label, type);
 
-ALTER TABLE llx_categorie ADD INDEX idx_categorie_type (type);
-ALTER TABLE llx_categorie ADD INDEX idx_categorie_label (label);
+ALTER TABLE llx_categorie ADD UNIQUE INDEX uk_categorie_ref (entity, fk_parent, label, type);

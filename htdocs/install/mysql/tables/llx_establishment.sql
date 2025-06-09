@@ -1,5 +1,5 @@
 -- ============================================================================
--- Copyright (C) 2015       Alexandre Spangaro  <aspangaro.dolibarr@gmail.com>
+-- Copyright (C) 2015       Alexandre Spangaro  <aspangaro@open-dsi.fr>
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ============================================================================
 --
@@ -22,7 +22,9 @@
 CREATE TABLE llx_establishment (
   rowid 			integer NOT NULL auto_increment PRIMARY KEY,
   entity 			integer NOT NULL DEFAULT 1,
-  name				varchar(50),
+  ref				varchar(30),
+  label       		varchar(255) NOT NULL,
+  name				varchar(128),
   address           varchar(255),
   zip               varchar(25),
   town              varchar(50),
@@ -31,11 +33,10 @@ CREATE TABLE llx_establishment (
   profid1			varchar(20),
   profid2			varchar(20),
   profid3			varchar(20),
-  phone				varchar(20),
+  phone				varchar(30),
   fk_user_author 	integer NOT NULL,
   fk_user_mod		integer,
   datec				datetime NOT NULL,
-  tms				timestamp NOT NULL,
+  tms				timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
   status            tinyint DEFAULT 1
-) ENGINE=InnoDB;
-
+) ENGINE=innodb;

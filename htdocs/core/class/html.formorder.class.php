@@ -1,6 +1,7 @@
 <?php
 /* Copyright (C) 2008-2012 Laurent Destailleur  <eldy@users.sourceforge.net>
  * Copyright (C) 2016      Marcos García        <marcosgdf@gmail.com>
+ * Copyright (C) 2024		MDW						<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -22,7 +23,8 @@
  *	\brief      File of predefined functions for HTML forms for order module
  */
 
-require_once DOL_DOCUMENT_ROOT .'/core/class/html.form.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/html.form.class.php';
+require_once DOL_DOCUMENT_ROOT.'/commande/class/commande.class.php';
 
 /**
  *	Class to manage HTML output components for orders
@@ -30,40 +32,94 @@ require_once DOL_DOCUMENT_ROOT .'/core/class/html.form.class.php';
  */
 class FormOrder extends Form
 {
+	/**
+	 *  Return combo list of different statuses of orders
+	 *
+	 *  @param	string	$selected   Preselected value
+	 *  @param	int		$short		Use short labels
+	 *  @param	string	$htmlname	Name of HTML select element
+	 *  @param	string	$morecss	More CSS
+	 *  @param	int		$multi		Use a multiselect
+	 *  @return	void
+	 */
+	public function selectSupplierOrderStatus($selected = '', $short = 0, $htmlname = 'order_status', $morecss = '', $multi = 1)
+	{
+		$options = array();
+
+		// 7 is same label than 6. 8 does not exists (billed is another field)
+		$statustohow = array(
+			'0' => '0',
+			'1' => '1',
+			'2' => '2',
+			'3' => '3',
+			'4' => '4',
+			'5' => '5',
+			'6' => '6,7',
+			'9' => '9'
+		);
+
+		$tmpsupplierorder = new CommandeFournisseur($this->db);
+
+		foreach ($statustohow as $key => $value) {
+			$tmpsupplierorder->statut = $key;
+			$tmpsupplierorder->status = $key;
+			$options[$value] = $tmpsupplierorder->getLibStatut($short);
+		}
+
+		if (is_array($selected)) {
+			$selectedarray = $selected;
+		} else {
+			$selectedarray = explode(',', $selected);
+		}
+
+		if (!empty($selectedarray[6])) {	// special case for status '6,7'
+			unset($selectedarray[6]);
+			unset($selectedarray[7]);
+			$selectedarray['6,7'] = '6,7';
+		}
+
+		if ($multi) {
+			print Form::multiselectarray($htmlname, $options, $selectedarray, 0, 0, $morecss, 0, 0);
+		} else {
+			print Form::selectarray($htmlname, $options, $selectedarray, 0, 0, 0, '', 0, 0, 0, '', $morecss);  // $selectedarray is ok for $id param @phan-suppress-current-line PhanPluginSuspiciousParamOrder
+		}
+	}
 
 	/**
-     *    Return combo list of differents status of a orders
-     *
-     *    @param	string	$selected   Preselected value
-     *    @param	int		$short		Use short labels
-     *    @param	string	$hmlname	Name of HTML select element
-     *    @return	void
-     */
-    public function selectSupplierOrderStatus($selected='', $short=0, $hmlname='order_status')
-    {
-	    $options = array();
+	 *  Return combo list of different status of orders
+	 *
+	 *  @param	string	$selected   Preselected value
+	 *  @param	int		$short		Use short labels
+	 *  @param	string	$htmlname	Name of HTML select element
+	 *  @return	void
+	 */
+	public function selectOrderStatus($selected = '', $short = 0, $htmlname = 'order_status')
+	{
+		$options = array();
 
-	    // 7 is same label than 6. 8 does not exists (billed is another field)
-	    $statustohow = array(
-		    '0' => '0',
-		    '1' => '1',
-		    '2' => '2',
-		    '3' => '3',
-		    '4' => '4',
-		    '5' => '5',
-		    '6' => '6,7',
-		    '9' => '9'
-	    );
+		$statustohow = array(
+			Commande::STATUS_DRAFT,
+			Commande::STATUS_VALIDATED,
+			Commande::STATUS_SHIPMENTONPROCESS,
+			Commande::STATUS_CLOSED,
+			Commande::STATUS_CANCELED
+		);
 
-	    $tmpsupplierorder = new CommandeFournisseur($this->db);
+		$tmpsupplierorder = new Commande($this->db);
 
-	    foreach ($statustohow as $key => $value) {
-		    $tmpsupplierorder->statut = $key;
-		    $options[$value] = $tmpsupplierorder->getLibStatut($short);
-	    }
+		foreach ($statustohow as $value) {
+			$tmpsupplierorder->statut = $value;
+			$options[$value] = $tmpsupplierorder->getLibStatut($short);
+		}
 
-	    print Form::selectarray($hmlname, $options, $selected, 1);
-    }
+		if (is_array($selected)) {
+			$selectedarray = $selected;
+		} else {
+			$selectedarray = explode(',', $selected);
+		}
+
+		print Form::multiselectarray($htmlname, $options, $selectedarray, 0, 0, '', 0, 150);
+	}
 
 	/**
 	 *	Return list of input method (mode used to receive order, like order received by email, fax, online)
@@ -72,20 +128,20 @@ class FormOrder extends Form
 	 *	@param	string	$selected		Id of preselected input method
 	 *  @param  string	$htmlname 		Name of HTML select list
 	 *  @param  int		$addempty		0=list with no empty value, 1=list with empty value
-	 *  @return	array					Tableau des sources de commandes
+	 *  @return	int						Return integer <0 if KO, >0 if OK
 	 */
-	public function selectInputMethod($selected='',$htmlname='source_id',$addempty=0)
+	public function selectInputMethod($selected = '', $htmlname = 'source_id', $addempty = 0)
 	{
 		global $langs;
 
-        $listofmethods=array();
+		$listofmethods = array();
 
 		$sql = "SELECT rowid, code, libelle as label";
-		$sql.= " FROM ".MAIN_DB_PREFIX."c_input_method";
-		$sql.= " WHERE active = 1";
+		$sql .= " FROM ".$this->db->prefix()."c_input_method";
+		$sql .= " WHERE active = 1";
 
 		dol_syslog(get_class($this)."::selectInputMethod", LOG_DEBUG);
-		$resql=$this->db->query($sql);
+		$resql = $this->db->query($sql);
 
 		if (!$resql) {
 			dol_print_error($this->db);
@@ -96,10 +152,8 @@ class FormOrder extends Form
 			$listofmethods[$obj->rowid] = $langs->trans($obj->code) != $obj->code ? $langs->trans($obj->code) : $obj->label;
 		}
 
-		print Form::selectarray($htmlname,$listofmethods,$selected,$addempty);
+		print Form::selectarray($htmlname, $listofmethods, $selected, $addempty);
 
 		return 1;
 	}
-
 }
-

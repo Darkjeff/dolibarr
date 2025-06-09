@@ -3,6 +3,8 @@
  * Copyright (C) 2014-2016  Juanjo Menent       <jmenent@2byte.es>
  * Copyright (C) 2016       Florian Henry       <florian.henry@atm-consulting.fr>
  * Copyright (C) 2015       Raphaël Doursenaud  <rdoursenaud@gpcsolutions.fr>
+ * Copyright (C) 2024       Frédéric France             <frederic.france@free.fr>
+ * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -15,27 +17,28 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
- * \file    resource/ctyperesource.class.php
+ * \file    htdocs/core/class/ctyperesource.class.php
  * \ingroup resource
  */
 
+// Put here all includes required by your class file
+require_once DOL_DOCUMENT_ROOT.'/core/class/commondict.class.php';
+
+
 /**
  * Class Ctyperesource
- *
- * Put here description of your class
- *
- * @see CommonObject
  */
-class Ctyperesource
+class Ctyperesource extends CommonDict
 {
 	/**
 	 * @var string Id to identify managed objects
 	 */
 	public $element = 'ctyperesource';
+
 	/**
 	 * @var string Name of table without prefix where object is stored
 	 */
@@ -46,21 +49,11 @@ class Ctyperesource
 	 */
 	public $lines = array();
 
-	/**
-	 */
-
-	public $code;
-	public $label;
-	public $active;
-
-	/**
-	 */
-
 
 	/**
 	 * Constructor
 	 *
-	 * @param DoliDb $db Database handler
+	 * @param DoliDB $db Database handler
 	 */
 	public function __construct(DoliDB $db)
 	{
@@ -71,11 +64,10 @@ class Ctyperesource
 	 * Create object into database
 	 *
 	 * @param  User $user      User that creates
-	 * @param  bool $notrigger false=launch triggers after, true=disable triggers
-	 *
-	 * @return int <0 if KO, Id of created object if OK
+	 * @param  int 	$notrigger 0=launch triggers after, 1=disable triggers
+	 * @return int Return integer <0 if KO, Id of created object if OK
 	 */
-	public function create(User $user, $notrigger = false)
+	public function create(User $user, $notrigger = 0)
 	{
 		dol_syslog(__METHOD__, LOG_DEBUG);
 
@@ -84,65 +76,54 @@ class Ctyperesource
 		// Clean parameters
 
 		if (isset($this->code)) {
-			 $this->code = trim($this->code);
+			$this->code = trim($this->code);
 		}
 		if (isset($this->label)) {
-			 $this->label = trim($this->label);
+			$this->label = trim($this->label);
 		}
 		if (isset($this->active)) {
-			 $this->active = trim($this->active);
+			$this->active = (int) $this->active;
 		}
 
-
-
-		// Check parameters
-		// Put here code to add control on parameters values
-
 		// Insert request
-		$sql = 'INSERT INTO ' . MAIN_DB_PREFIX . $this->table_element . '(';
-
-		$sql.= 'code,';
-		$sql.= 'label';
-		$sql.= 'active';
-
-
+		$sql = 'INSERT INTO '.$this->db->prefix().$this->table_element.'(';
+		$sql .= 'code,';
+		$sql .= 'label';
+		$sql .= 'active';
 		$sql .= ') VALUES (';
-
-		$sql .= ' '.(! isset($this->code)?'NULL':"'".$this->db->escape($this->code)."'").',';
-		$sql .= ' '.(! isset($this->label)?'NULL':"'".$this->db->escape($this->label)."'").',';
-		$sql .= ' '.(! isset($this->active)?'NULL':$this->active);
-
-
+		$sql .= ' '.(!isset($this->code) ? 'NULL' : "'".$this->db->escape($this->code)."'").',';
+		$sql .= ' '.(!isset($this->label) ? 'NULL' : "'".$this->db->escape($this->label)."'").',';
+		$sql .= ' '.(!isset($this->active) ? 'NULL' : $this->active);
 		$sql .= ')';
 
 		$this->db->begin();
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
-			$error ++;
-			$this->errors[] = 'Error ' . $this->db->lasterror();
-			dol_syslog(__METHOD__ . ' ' . implode(',', $this->errors), LOG_ERR);
+			$error++;
+			$this->errors[] = 'Error '.$this->db->lasterror();
+			dol_syslog(__METHOD__.' '.implode(',', $this->errors), LOG_ERR);
 		}
 
 		if (!$error) {
-			$this->id = $this->db->last_insert_id(MAIN_DB_PREFIX . $this->table_element);
+			$this->id = $this->db->last_insert_id($this->db->prefix().$this->table_element);
 
-			if (!$notrigger) {
-				// Uncomment this and change MYOBJECT to your own tag if you
-				// want this action to call a trigger.
+			// Uncomment this and change CTYPERESOURCE to your own tag if you
+			// want this action to call a trigger.
+			//if (!$notrigger) {
 
-				//// Call triggers
-				//$result=$this->call_trigger('MYOBJECT_CREATE',$user);
-				//if ($result < 0) $error++;
-				//// End call triggers
-			}
+			//  // Call triggers
+			//  $result=$this->call_trigger('CTYPERESOURCE_CREATE',$user);
+			//  if ($result < 0) $error++;
+			//  // End call triggers
+			//}
 		}
 
 		// Commit or rollback
 		if ($error) {
 			$this->db->rollback();
 
-			return - 1 * $error;
+			return -1 * $error;
 		} else {
 			$this->db->commit();
 
@@ -157,25 +138,25 @@ class Ctyperesource
 	 * @param string $code code
 	 * @param string $label Label
 	 *
-	 * @return int <0 if KO, 0 if not found, >0 if OK
+	 * @return int Return integer <0 if KO, 0 if not found, >0 if OK
 	 */
-	public function fetch($id,$code='',$label='')
+	public function fetch($id, $code = '', $label = '')
 	{
 		dol_syslog(__METHOD__, LOG_DEBUG);
 
-		$sql = 'SELECT';
-		$sql .= ' t.rowid,';
-
+		$sql = "SELECT";
+		$sql .= " t.rowid,";
 		$sql .= " t.code,";
 		$sql .= " t.label,";
 		$sql .= " t.active";
-
-
-		$sql .= ' FROM ' . MAIN_DB_PREFIX . $this->table_element . ' as t';
-		if ($id)   $sql.= " WHERE t.id = ".$id;
-		elseif ($code) $sql.= " WHERE t.code = '".$this->db->escape($code)."'";
-		elseif ($label) $sql.= " WHERE t.label = '".$this->db->escape($label)."'";
-
+		$sql .= " FROM ".$this->db->prefix().$this->table_element." as t";
+		if ($id) {
+			$sql .= " WHERE t.id = ".((int) $id);
+		} elseif ($code) {
+			$sql .= " WHERE t.code = '".$this->db->escape($code)."'";
+		} elseif ($label) {
+			$sql .= " WHERE t.label = '".$this->db->escape($label)."'";
+		}
 
 		$resql = $this->db->query($sql);
 		if ($resql) {
@@ -188,8 +169,6 @@ class Ctyperesource
 				$this->code = $obj->code;
 				$this->label = $obj->label;
 				$this->active = $obj->active;
-
-
 			}
 
 			// Retrieve all extrafields for invoice
@@ -206,55 +185,73 @@ class Ctyperesource
 				return 0;
 			}
 		} else {
-			$this->errors[] = 'Error ' . $this->db->lasterror();
-			dol_syslog(__METHOD__ . ' ' . implode(',', $this->errors), LOG_ERR);
+			$this->errors[] = 'Error '.$this->db->lasterror();
+			dol_syslog(__METHOD__.' '.implode(',', $this->errors), LOG_ERR);
 
-			return - 1;
+			return -1;
 		}
 	}
 
 	/**
 	 * Load object in memory from the database
 	 *
-	 * @param string $sortorder Sort Order
-	 * @param string $sortfield Sort field
-	 * @param int    $limit     offset limit
-	 * @param int    $offset    offset limit
-	 * @param array  $filter    filter array
-	 * @param string $filtermode filter mode (AND or OR)
-	 *
-	 * @return int <0 if KO, >0 if OK
+	 * @param string 		$sortorder 		Sort Order
+	 * @param string 		$sortfield 		Sort field
+	 * @param int    		$limit     		Limit
+	 * @param int    		$offset    		Offset limit
+	 * @param string|array<string,mixed>  $filter	Filter array
+	 * @param string 		$filtermode 	filter mode (AND or OR)
+	 * @return int 							Return integer <0 if KO, >0 if OK
 	 */
-	public function fetchAll($sortorder='', $sortfield='', $limit=0, $offset=0, array $filter = array(), $filtermode='AND')
+	public function fetchAll($sortorder = '', $sortfield = '', $limit = 0, $offset = 0, $filter = '', $filtermode = 'AND')
 	{
 		dol_syslog(__METHOD__, LOG_DEBUG);
 
-		$sql = 'SELECT';
-		$sql .= ' t.rowid,';
-
+		$sql = "SELECT";
+		$sql .= " t.rowid,";
 		$sql .= " t.code,";
 		$sql .= " t.label,";
 		$sql .= " t.active";
-
-
-		$sql .= ' FROM ' . MAIN_DB_PREFIX . $this->table_element. ' as t';
+		$sql .= " FROM ".$this->db->prefix().$this->table_element." as t";
+		$sql .= " WHERE 1 = 1";
 
 		// Manage filter
-		$sqlwhere = array();
-		if (count($filter) > 0) {
-			foreach ($filter as $key => $value) {
-				$sqlwhere [] = $key . ' LIKE \'%' . $this->db->escape($value) . '%\'';
+		if (is_array($filter)) {
+			$sqlwhere = array();
+			if (count($filter) > 0) {
+				foreach ($filter as $key => $value) {
+					if ($key == 't.rowid' || $key == 't.active' || $key == 't.code') {
+						$sqlwhere[] = $this->db->sanitize($key)." = ".((int) $value);
+					} elseif (strpos($key, 'date') !== false) {
+						$sqlwhere[] = $this->db->sanitize($key)." = '".$this->db->idate($value)."'";
+					} elseif ($key == 't.label') {
+						$sqlwhere[] = $this->db->sanitize($key)." = '".$this->db->escape($value)."'";
+					} else {
+						$sqlwhere[] = $this->db->sanitize($key)." LIKE '%".$this->db->escape($value)."%'";
+					}
+				}
 			}
+			if (count($sqlwhere) > 0) {
+				$sql .= " AND ".implode(' '.$this->db->escape($filtermode).' ', $sqlwhere);
+			}
+
+			$filter = '';
 		}
 
-		if (count($sqlwhere) > 0) {
-			$sql .= ' WHERE ' . implode(' '.$filtermode.' ', $sqlwhere);
+		// Manage filter
+		$errormessage = '';
+		$sql .= forgeSQLFromUniversalSearchCriteria($filter, $errormessage);
+		if ($errormessage) {
+			$this->errors[] = $errormessage;
+			dol_syslog(__METHOD__.' '.implode(',', $this->errors), LOG_ERR);
+			return -1;
 		}
+
 		if (!empty($sortfield)) {
-			$sql .= $this->db->order($sortfield,$sortorder);
+			$sql .= $this->db->order($sortfield, $sortorder);
 		}
 		if (!empty($limit)) {
-		 $sql .=  ' ' . $this->db->plimit($limit, $offset);
+			$sql .= $this->db->plimit($limit, $offset);
 		}
 
 		$resql = $this->db->query($sql);
@@ -269,29 +266,26 @@ class Ctyperesource
 				$line->code = $obj->code;
 				$line->label = $obj->label;
 				$line->active = $obj->active;
-
-
 			}
 			$this->db->free($resql);
 
 			return $num;
 		} else {
-			$this->errors[] = 'Error ' . $this->db->lasterror();
-			dol_syslog(__METHOD__ . ' ' . implode(',', $this->errors), LOG_ERR);
+			$this->errors[] = 'Error '.$this->db->lasterror();
+			dol_syslog(__METHOD__.' '.implode(',', $this->errors), LOG_ERR);
 
-			return - 1;
+			return -1;
 		}
 	}
 
 	/**
 	 * Update object into database
 	 *
-	 * @param  User $user      User that modifies
-	 * @param  bool $notrigger false=launch triggers after, true=disable triggers
-	 *
-	 * @return int <0 if KO, >0 if OK
+	 * @param  User $user      	User that modifies
+	 * @param  int 	$notrigger 	0=launch triggers after, 1=disable triggers
+	 * @return int 				Return integer <0 if KO, >0 if OK
 	 */
-	public function update(User $user, $notrigger = false)
+	public function update(User $user, $notrigger = 0)
 	{
 		$error = 0;
 
@@ -300,52 +294,49 @@ class Ctyperesource
 		// Clean parameters
 
 		if (isset($this->code)) {
-			 $this->code = trim($this->code);
+			$this->code = trim($this->code);
 		}
 		if (isset($this->label)) {
-			 $this->label = trim($this->label);
+			$this->label = trim($this->label);
 		}
 		if (isset($this->active)) {
-			 $this->active = trim($this->active);
+			$this->active = (int) $this->active;
 		}
 
 		// Check parameters
 		// Put here code to add a control on parameters values
 
 		// Update request
-		$sql = 'UPDATE ' . MAIN_DB_PREFIX . $this->table_element . ' SET';
-
-		$sql .= ' code = '.(isset($this->code)?"'".$this->db->escape($this->code)."'":"null").',';
-		$sql .= ' label = '.(isset($this->label)?"'".$this->db->escape($this->label)."'":"null").',';
-		$sql .= ' active = '.(isset($this->active)?$this->active:"null");
-
-
-		$sql .= ' WHERE rowid=' . $this->id;
+		$sql = 'UPDATE '.$this->db->prefix().$this->table_element.' SET';
+		$sql .= ' code = '.(isset($this->code) ? "'".$this->db->escape($this->code)."'" : "null").',';
+		$sql .= ' label = '.(isset($this->label) ? "'".$this->db->escape($this->label)."'" : "null").',';
+		$sql .= ' active = '.(isset($this->active) ? $this->active : "null");
+		$sql .= ' WHERE rowid='.((int) $this->id);
 
 		$this->db->begin();
 
 		$resql = $this->db->query($sql);
 		if (!$resql) {
-			$error ++;
-			$this->errors[] = 'Error ' . $this->db->lasterror();
-			dol_syslog(__METHOD__ . ' ' . implode(',', $this->errors), LOG_ERR);
+			$error++;
+			$this->errors[] = 'Error '.$this->db->lasterror();
+			dol_syslog(__METHOD__.' '.implode(',', $this->errors), LOG_ERR);
 		}
 
-		if (!$error && !$notrigger) {
-			// Uncomment this and change MYOBJECT to your own tag if you
-			// want this action calls a trigger.
+		// Uncomment this and change CTYPERESOURCE to your own tag if you
+		// want this action calls a trigger.
+		//if (!$error && !$notrigger) {
 
-			//// Call triggers
-			//$result=$this->call_trigger('MYOBJECT_MODIFY',$user);
-			//if ($result < 0) { $error++; //Do also what you must do to rollback action if trigger fail}
-			//// End call triggers
-		}
+		//  // Call triggers
+		//  $result=$this->call_trigger('CTYPERESOURCE_MODIFY',$user);
+		//  if ($result < 0) { $error++; //Do also what you must do to rollback action if trigger fail}
+		//  // End call triggers
+		//}
 
 		// Commit or rollback
 		if ($error) {
 			$this->db->rollback();
 
-			return - 1 * $error;
+			return -1 * $error;
 		} else {
 			$this->db->commit();
 
@@ -356,12 +347,11 @@ class Ctyperesource
 	/**
 	 * Delete object in database
 	 *
-	 * @param User $user      User that deletes
-	 * @param bool $notrigger false=launch triggers after, true=disable triggers
-	 *
-	 * @return int <0 if KO, >0 if OK
+	 * @param User 	$user      	User that deletes
+	 * @param int 	$notrigger 	0=launch triggers after, 1=disable triggers
+	 * @return int 				Return integer <0 if KO, >0 if OK
 	 */
-	public function delete(User $user, $notrigger = false)
+	public function delete(User $user, $notrigger = 0)
 	{
 		dol_syslog(__METHOD__, LOG_DEBUG);
 
@@ -369,29 +359,27 @@ class Ctyperesource
 
 		$this->db->begin();
 
-		if (!$error) {
-			if (!$notrigger) {
-				// Uncomment this and change MYOBJECT to your own tag if you
-				// want this action calls a trigger.
+		// Uncomment this and change CTYPERESOURCE to your own tag if you
+		// want this action calls a trigger.
+		//if (!$error && !$notrigger) {
 
-				//// Call triggers
-				//$result=$this->call_trigger('MYOBJECT_DELETE',$user);
-				//if ($result < 0) { $error++; //Do also what you must do to rollback action if trigger fail}
-				//// End call triggers
-			}
-		}
+		//  // Call triggers
+		//  $result=$this->call_trigger('CTYPERESOURCE_DELETE',$user);
+		//  if ($result < 0) { $error++; //Do also what you must do to rollback action if trigger fail}
+		//  // End call triggers
+		//}
 
 		// If you need to delete child tables to, you can insert them here
 
 		if (!$error) {
-			$sql = 'DELETE FROM ' . MAIN_DB_PREFIX . $this->table_element;
-			$sql .= ' WHERE rowid=' . $this->id;
+			$sql = 'DELETE FROM '.$this->db->prefix().$this->table_element;
+			$sql .= ' WHERE rowid='.((int) $this->id);
 
 			$resql = $this->db->query($sql);
 			if (!$resql) {
-				$error ++;
-				$this->errors[] = 'Error ' . $this->db->lasterror();
-				dol_syslog(__METHOD__ . ' ' . implode(',', $this->errors), LOG_ERR);
+				$error++;
+				$this->errors[] = 'Error '.$this->db->lasterror();
+				dol_syslog(__METHOD__.' '.implode(',', $this->errors), LOG_ERR);
 			}
 		}
 
@@ -399,7 +387,7 @@ class Ctyperesource
 		if ($error) {
 			$this->db->rollback();
 
-			return - 1 * $error;
+			return -1 * $error;
 		} else {
 			$this->db->commit();
 
@@ -410,15 +398,14 @@ class Ctyperesource
 	/**
 	 * Load an object from its id and create a new one in database
 	 *
-	 * @param int $fromid Id of object to clone
-	 *
-	 * @return int New id of clone
+	 * @param	User	$user		User making the clone
+	 * @param   int     $fromid     Id of object to clone
+	 * @return  int                 New id of clone
 	 */
-	public function createFromClone($fromid)
+	public function createFromClone(User $user, $fromid)
 	{
 		dol_syslog(__METHOD__, LOG_DEBUG);
 
-		global $user;
 		$error = 0;
 		$object = new Ctyperesource($this->db);
 
@@ -433,14 +420,17 @@ class Ctyperesource
 		// ...
 
 		// Create clone
+		$object->context['createfromclone'] = 'createfromclone';
 		$result = $object->create($user);
 
 		// Other options
 		if ($result < 0) {
-			$error ++;
+			$error++;
 			$this->errors = $object->errors;
-			dol_syslog(__METHOD__ . ' ' . implode(',', $this->errors), LOG_ERR);
+			dol_syslog(__METHOD__.' '.implode(',', $this->errors), LOG_ERR);
 		}
+
+		unset($object->context['createfromclone']);
 
 		// End
 		if (!$error) {
@@ -450,7 +440,7 @@ class Ctyperesource
 		} else {
 			$this->db->rollback();
 
-			return - 1;
+			return -1;
 		}
 	}
 
@@ -458,7 +448,7 @@ class Ctyperesource
 	 * Initialise object with example values
 	 * Id must be 0 if object instance is a specimen
 	 *
-	 * @return void
+	 * @return int
 	 */
 	public function initAsSpecimen()
 	{
@@ -466,9 +456,10 @@ class Ctyperesource
 
 		$this->code = '';
 		$this->label = '';
-		$this->active = '';
-	}
+		$this->active = 0;
 
+		return 1;
+	}
 }
 
 /**
@@ -480,16 +471,19 @@ class CtyperesourceLine
 	 * @var int ID
 	 */
 	public $id;
-	/**
-	 * @var mixed Sample line property 1
-	 */
 
+	/**
+	 * @var string Sample line property 1
+	 */
 	public $code;
-	public $label;
-	public $active;
 
 	/**
-	 * @var mixed Sample line property 2
+	 * @var string Type resource line label
 	 */
+	public $label;
 
+	/**
+	 * @var int
+	 */
+	public $active;
 }

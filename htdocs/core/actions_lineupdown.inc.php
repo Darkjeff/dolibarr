@@ -1,5 +1,7 @@
 <?php
-/* Copyright (C) 2015 Laurent Destailleur  <eldy@users.sourceforge.net>
+/* Copyright (C) 2015       Laurent Destailleur     <eldy@users.sourceforge.net>
+ * Copyright (C) 2024-2025  Frédéric France         <frederic.france@free.fr>
+ * Copyright (C) 2024-2025	MDW						<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,8 +14,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * or see http://www.gnu.org/
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * or see https://www.gnu.org/
  */
 
 /**
@@ -26,48 +28,63 @@
 // $permissiontoedit must be defined to permission to edit object
 // $object must be defined
 // $langs must be defined
-// $hidedetails, $hidedesc, $hideref must de defined
-
-if ($action == 'up' && $permissiontoedit)
-{
-	$object->line_up(GETPOST('rowid'));
-
-	// Define output language
-	$outputlangs = $langs;
-	$newlang = '';
-	if ($conf->global->MAIN_MULTILANGS && empty($newlang) && GETPOST('lang_id','aZ09')) $newlang = GETPOST('lang_id','aZ09');
-	if ($conf->global->MAIN_MULTILANGS && empty($newlang))	$newlang = $object->thirdparty->default_lang;
-	if (! empty($newlang)) {
-		$outputlangs = new Translate("", $conf);
-		$outputlangs->setDefaultLang($newlang);
-	}
-
-	if (empty($conf->global->MAIN_DISABLE_PDF_AUTOUPDATE)) {
-		$object->generateDocument($object->modelpdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
-	}
-
-	header('Location: ' . $_SERVER["PHP_SELF"] . '?id=' . $object->id . '#' . GETPOST('rowid'));
-	exit();
-}
-
-if ($action == 'down' && $permissiontoedit)
-{
-	$object->line_down(GETPOST('rowid'));
+// $hidedetails, $hidedesc, $hideref must defined
+'
+@phan-var-force bool $permissiontoedit
+@phan-var-force CommonObject $object
+';
+/**
+ * @var CommonObject $object
+ * @var Conf $conf
+ * @var Translate $langs
+ *
+ * @var string $action
+ */
+if ($action == 'up' && $permissiontoedit) {
+	$object->line_up(GETPOSTINT('rowid'));
 
 	// Define output language
 	$outputlangs = $langs;
 	$newlang = '';
-	if ($conf->global->MAIN_MULTILANGS && empty($newlang) && GETPOST('lang_id','aZ09')) $newlang = GETPOST('lang_id','aZ09');
-	if ($conf->global->MAIN_MULTILANGS && empty($newlang))	$newlang = $object->thirdparty->default_lang;
-	if (! empty($newlang)) {
+	if (getDolGlobalInt('MAIN_MULTILANGS') /* && empty($newlang) */ && GETPOST('lang_id', 'aZ09')) {
+		$newlang = GETPOST('lang_id', 'aZ09');
+	}
+	if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
+		$newlang = $object->thirdparty->default_lang;
+	}
+	if (!empty($newlang)) {
 		$outputlangs = new Translate("", $conf);
 		$outputlangs->setDefaultLang($newlang);
 	}
-	if (empty($conf->global->MAIN_DISABLE_PDF_AUTOUPDATE)) {
-		$object->generateDocument($object->modelpdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
+
+	if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
+		$object->generateDocument($object->model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
 	}
 
-	header('Location: ' . $_SERVER["PHP_SELF"] . '?id=' . $object->id . '#' . GETPOST('rowid'));
+	header('Location: '.$_SERVER["PHP_SELF"].'?id='.$object->id.'#'.GETPOST('rowid'));
 	exit();
 }
 
+if ($action == 'down' && $permissiontoedit) {
+	$object->line_down(GETPOSTINT('rowid'));
+
+	// Define output language
+	$outputlangs = $langs;
+	$newlang = '';
+	if (getDolGlobalInt('MAIN_MULTILANGS') /* && empty($newlang) */ && GETPOST('lang_id', 'aZ09')) {
+		$newlang = GETPOST('lang_id', 'aZ09');
+	}
+	if (getDolGlobalInt('MAIN_MULTILANGS') && empty($newlang)) {
+		$newlang = $object->thirdparty->default_lang;
+	}
+	if (!empty($newlang)) {
+		$outputlangs = new Translate("", $conf);
+		$outputlangs->setDefaultLang($newlang);
+	}
+	if (!getDolGlobalString('MAIN_DISABLE_PDF_AUTOUPDATE')) {
+		$object->generateDocument($object->model_pdf, $outputlangs, $hidedetails, $hidedesc, $hideref);
+	}
+
+	header('Location: '.$_SERVER["PHP_SELF"].'?id='.$object->id.'#'.GETPOST('rowid'));
+	exit();
+}

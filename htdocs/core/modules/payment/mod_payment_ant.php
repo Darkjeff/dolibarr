@@ -1,5 +1,6 @@
 <?php
 /* Copyright (C) 2015      Juanjo Menent	    <jmenent@2byte.es>
+ * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,8 +13,8 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * or see http://www.gnu.org/
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * or see https://www.gnu.org/
  */
 
 /**
@@ -22,7 +23,7 @@
  * \brief      File containing class for numbering module Ant
  */
 
-require_once DOL_DOCUMENT_ROOT .'/core/modules/payment/modules_payment.php';
+require_once DOL_DOCUMENT_ROOT.'/core/modules/payment/modules_payment.php';
 
 
 /**
@@ -30,111 +31,140 @@ require_once DOL_DOCUMENT_ROOT .'/core/modules/payment/modules_payment.php';
  */
 class mod_payment_ant extends ModeleNumRefPayments
 {
-	var $version='dolibarr';		// 'development', 'experimental', 'dolibarr'
-	var $error = '';
-	var $nom = 'Ant';
+	/**
+	 * Dolibarr version of the loaded document
+	 * @var string Version, possible values are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated' or a version string like 'x.y.z'''|'development'|'dolibarr'|'experimental'
+	 */
+	public $version = 'dolibarr'; // 'development', 'experimental', 'dolibarr'
+
+	/**
+	 * @var string Error message
+	 */
+	public $error = '';
+
+	/**
+	 * @var string Name of sub-module
+	 * @deprecated
+	 * @see $name
+	 */
+	public $nom = 'Ant';
+
+	/**
+	 * @var string Sub-module name
+	 */
+	public $name = 'Ant';
+
+	/**
+	 * @var int		Position
+	 */
+	public $position = 50;
 
 
-    /**
-     *  Renvoi la description du modele de numerotation
-     *
-     *  @return     string      Texte descripif
-     */
-	function info()
-    {
-    	global $conf,$langs;
+	/**
+	 *  Returns the description of the numbering model
+	 *
+	 *	@param	Translate	$langs      Lang object to use for output
+	 *  @return string      			Descriptive text
+	 */
+	public function info($langs)
+	{
+		global $db, $langs;
 
 		$langs->load("bills");
 
-		$form = new Form($this->db);
+		$form = new Form($db);
 
 		$texte = $langs->trans('GenericNumRefModelDesc')."<br>\n";
-		$texte.= '<form action="'.$_SERVER["PHP_SELF"].'" method="POST">';
-		$texte.= '<input type="hidden" name="token" value="'.$_SESSION['newtoken'].'">';
-		$texte.= '<input type="hidden" name="action" value="updateMask">';
-		$texte.= '<input type="hidden" name="maskconstpayment" value="PAYMENT_ANT_MASK">';
-		$texte.= '<table class="nobordernopadding" width="100%">';
+		$texte .= '<form action="'.$_SERVER["PHP_SELF"].'" method="POST">';
+		$texte .= '<input type="hidden" name="token" value="'.newToken().'">';
+		$texte .= '<input type="hidden" name="action" value="updateMask">';
+		$texte .= '<input type="hidden" name="maskconstpayment" value="PAYMENT_ANT_MASK">';
+		$texte .= '<input type="hidden" name="page_y" value="">';
 
-		$tooltip=$langs->trans("GenericMaskCodes",$langs->transnoentities("Order"),$langs->transnoentities("Order"));
-		$tooltip.=$langs->trans("GenericMaskCodes2");
-		$tooltip.=$langs->trans("GenericMaskCodes3");
-		$tooltip.=$langs->trans("GenericMaskCodes4a",$langs->transnoentities("Order"),$langs->transnoentities("Order"));
-		$tooltip.=$langs->trans("GenericMaskCodes5");
+		$texte .= '<table class="nobordernopadding centpercent">';
+
+		$tooltip = $langs->trans("GenericMaskCodes", $langs->transnoentities("Order"), $langs->transnoentities("Order"));
+		$tooltip .= $langs->trans("GenericMaskCodes1");
+		$tooltip .= '<br>';
+		$tooltip .= $langs->trans("GenericMaskCodes2");
+		$tooltip .= '<br>';
+		$tooltip .= $langs->trans("GenericMaskCodes3");
+		$tooltip .= $langs->trans("GenericMaskCodes4a", $langs->transnoentities("Order"), $langs->transnoentities("Order"));
+		$tooltip .= $langs->trans("GenericMaskCodes5");
+		//$tooltip .= '<br>'.$langs->trans("GenericMaskCodes5b");
 
 		// Parametrage du prefix
-		$texte.= '<tr><td>'.$langs->trans("Mask").':</td>';
-		$texte.= '<td align="right">'.$form->textwithpicto('<input type="text" class="flat" size="24" name="maskpayment" value="'.$conf->global->PAYMENT_ANT_MASK.'">',$tooltip,1,1).'</td>';
+		$texte .= '<tr><td>'.$langs->trans("Mask").':</td>';
+		$texte .= '<td class="right">'.$form->textwithpicto('<input type="text" class="flat minwidth175" name="maskpayment" value="'.getDolGlobalString('PAYMENT_ANT_MASK').'">', $tooltip, 1, 'help', 'valignmiddle', 0, 3, $this->name).'</td>';
 
-		$texte.= '<td align="left" rowspan="2">&nbsp; <input type="submit" class="button" value="'.$langs->trans("Modify").'" name="Button"></td>';
+		$texte .= '<td class="left" rowspan="2">&nbsp; <input type="submit" class="button button-edit reposition smallpaddingimp" name="Button" value="'.$langs->trans("Save").'"></td>';
 
-		$texte.= '</tr>';
+		$texte .= '</tr>';
 
-		$texte.= '</table>';
-		$texte.= '</form>';
+		$texte .= '</table>';
+		$texte .= '</form>';
 
 		return $texte;
-    }
+	}
 
-    /**
-     *  Renvoi un exemple de numerotation
-     *
-     *  @return     string      Example
-     */
-    function getExample()
-    {
-     	global $conf,$langs,$mysoc;
+	/**
+	 *  Return an example of numbering
+	 *
+	 *  @return     string      Example
+	 */
+	public function getExample()
+	{
+		global $mysoc;
 
-    	$old_code_client=$mysoc->code_client;
-    	$mysoc->code_client='CCCCCCCCCC';
-     	$numExample = $this->getNextValue($mysoc,'');
-		$mysoc->code_client=$old_code_client;
+		$old_code_client = $mysoc->code_client;
+		$mysoc->code_client = 'CCCCCCCCCC';
+		$numExample = $this->getNextValue($mysoc, null);
+		$mysoc->code_client = $old_code_client;
 
-		if (! $numExample)
-		{
-			$numExample = $langs->trans('NotConfigured');
+		if (!$numExample) {
+			$numExample = 'NotConfigured';
 		}
 		return $numExample;
-    }
+	}
 
 	/**
 	 * 	Return next free value
 	 *
-	 *  @param	Societe		$objsoc     Object thirdparty
-	 *  @param  Object		$object		Object we need next value for
-	 *  @return string      			Value if KO, <0 if KO
+	 *  @param	Societe			$objsoc     Object thirdparty
+	 *  @param  ?Paiement		$object		Object we need next value for
+	 *  @return string|int<-1,0>			Value if OK, <=0 if KO
 	 */
-    function getNextValue($objsoc,$object)
-    {
-		global $db,$conf;
+	public function getNextValue($objsoc, $object)
+	{
+		global $db;
 
-		require_once DOL_DOCUMENT_ROOT .'/core/lib/functions2.lib.php';
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
 
 		// We get cursor rule
-		$mask=$conf->global->PAYMENT_ANT_MASK;
+		$mask = getDolGlobalString('PAYMENT_ANT_MASK');
 
-		if (! $mask)
-		{
-			$this->error='NotConfigured';
+		if (!$mask) {
+			$this->error = 'NotConfigured';
 			return 0;
 		}
 
-		$numFinal=get_next_value($db,$mask,'paiement','ref','',$objsoc,$object->datepaye);
+		$numFinal = get_next_value($db, $mask, 'paiement', 'ref', '', $objsoc, $object->datepaye);
 
 		return  $numFinal;
 	}
 
 
+	// phpcs:disable PEAR.NamingConventions.ValidFunctionName.ScopeNotCamelCaps
 	/**
 	 *  Return next free value
 	 *
-	 *  @param	Societe		$objsoc     Object third party
-	 * 	@param	string		$objforref	Object for number to search
-	 *  @return string      			Next free value
-     */
-    function commande_get_num($objsoc,$objforref)
-    {
-        return $this->getNextValue($objsoc,$objforref);
-    }
-
+	 *  @param	Societe			$objsoc     Object third party
+	 * 	@param	?Paiement		$objforref	Object for number to search
+	 *  @return string|int<-1,0>  			Next free value, <=0 if KO
+	 */
+	public function commande_get_num($objsoc, $objforref)
+	{
+		// phpcs:enable
+		return $this->getNextValue($objsoc, $objforref);
+	}
 }
-

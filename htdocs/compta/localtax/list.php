@@ -1,5 +1,7 @@
 <?php
 /* Copyright (C) 2011-2014		Juanjo Menent <jmenent@2byte.es>
+ * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,7 +14,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -21,16 +23,33 @@
  *		\brief      List of IRPF payments
  */
 
+// Load Dolibarr environment
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/compta/localtax/class/localtax.class.php';
 
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Societe $mysoc
+ * @var Translate $langs
+ * @var User $user
+ */
+
+// Load translation files required by the page
 $langs->load("compta");
 
+$limit = GETPOSTINT('limit');
+
 // Security check
-$socid = GETPOST('socid','int');
-if ($user->societe_id) $socid=$user->societe_id;
+$socid = GETPOSTINT('socid');
+if ($user->socid) {
+	$socid = $user->socid;
+}
+
 $result = restrictedArea($user, 'tax', '', '', 'charges');
-$ltt=GETPOST("localTaxType");
+$ltt = GETPOSTINT("localTaxType");
+$mode = GETPOST('mode', 'alpha');
 
 
 /*
@@ -41,62 +60,92 @@ llxHeader();
 
 $localtax_static = new Localtax($db);
 
-$newcardbutton='';
-if ($user->rights->tax->charges->creer)
-{
-	$newcardbutton='<a class="butAction" href="'.DOL_URL_ROOT.'/compta/localtax/card.php?action=create&localTaxType='.$ltt.'">'.$langs->trans('NewVATPayment').'</a>';
+$url = DOL_URL_ROOT.'/compta/localtax/card.php?action=create&localTaxType='.$ltt;
+if (!empty($socid)) {
+	$url .= '&socid='.$socid;
 }
+$param = '';
+if (!empty($mode)) {
+	$param .= '&mode='.urlencode($mode);
+}
+$newcardbutton = '';
+$newcardbutton .= dolGetButtonTitle($langs->trans('ViewList'), '', 'fa fa-bars imgforviewmode', $_SERVER["PHP_SELF"].'?localTaxType='.$ltt.'&mode=common'.preg_replace('/(&|\?)*mode=[^&]+/', '', $param), '', ((empty($mode) || $mode == 'common') ? 2 : 1), array('morecss' => 'reposition'));
+$newcardbutton .= dolGetButtonTitle($langs->trans('ViewKanban'), '', 'fa fa-th-list imgforviewmode', $_SERVER["PHP_SELF"].'?localTaxType='.$ltt.'&mode=kanban'.preg_replace('/(&|\?)*mode=[^&]+/', '', $param), '', ($mode == 'kanban' ? 2 : 1), array('morecss' => 'reposition'));
+$newcardbutton .= dolGetButtonTitleSeparator();
+$newcardbutton .= dolGetButtonTitle($langs->trans('NewLocalTaxPayment', ($ltt + 1)), '', 'fa fa-plus-circle', $url, '', $user->hasRight('tax', 'charges', 'creer'));
 
-print load_fiche_titre($langs->transcountry($ltt==2?"LT2Payments":"LT1Payments",$mysoc->country_code), $newcardbutton);
+print load_fiche_titre($langs->transcountry($ltt == 2 ? "LT2Payments" : "LT1Payments", $mysoc->country_code), $newcardbutton, 'title_accountancy');
 
-$sql = "SELECT rowid, amount, label, f.datev as dm";
-$sql.= " FROM ".MAIN_DB_PREFIX."localtax as f ";
-$sql.= " WHERE f.entity = ".$conf->entity." AND localtaxtype=".$db->escape($ltt);
-$sql.= " ORDER BY dm DESC";
+$sql = "SELECT rowid, amount, label, f.datev, f.datep";
+$sql .= " FROM ".MAIN_DB_PREFIX."localtax as f ";
+$sql .= " WHERE f.entity = ".$conf->entity." AND localtaxtype = ".((int) $ltt);
+$sql .= " ORDER BY datev DESC";
 
 $result = $db->query($sql);
-if ($result)
-{
-    $num = $db->num_rows($result);
-    $i = 0;
-    $total = 0 ;
+if ($result) {
+	$num = $db->num_rows($result);
+	$i = 0;
+	$total = 0;
 
-    print '<table class="noborder" width="100%">';
-    print '<tr class="liste_titre">';
-    print '<td class="nowrap" align="left">'.$langs->trans("Ref").'</td>';
-    print "<td>".$langs->trans("Label")."</td>";
-    print '<td class="nowrap" align="left">'.$langs->trans("DatePayment").'</td>';
-    print "<td align=\"right\">".$langs->trans("PayedByThisPayment")."</td>";
-    print "</tr>\n";
-    $var=1;
-    while ($i < $num)
-    {
-        $obj = $db->fetch_object($result);
+	print '<div class="div-table-responsive-no-min">'; // You can use div-table-responsive-no-min if you don't need reserved height for your table
+	print '<table class="noborder centpercent">';
+	print '<tr class="liste_titre">';
+	print '<td class="nowrap" align="left">'.$langs->trans("Ref").'</td>';
+	print "<td>".$langs->trans("Label")."</td>";
+	print "<td>".$langs->trans("PeriodEndDate")."</td>";
+	print '<td class="nowrap" align="left">'.$langs->trans("DatePayment").'</td>';
+	print '<td class="right">'.$langs->trans("PayedByThisPayment").'</td>';
+	print "</tr>\n";
 
-        print '<tr class="oddeven">';
+	$savnbfield = 5;
 
-		$localtax_static->id=$obj->rowid;
-		$localtax_static->ref=$obj->rowid;
-		print "<td>".$localtax_static->getNomUrl(1)."</td>\n";
-        print "<td>".dol_trunc($obj->label,40)."</td>\n";
-        print '<td align="left">'.dol_print_date($db->jdate($obj->dm),'day')."</td>\n";
-        $total = $total + $obj->amount;
+	$imaxinloop = ($limit ? min($num, $limit) : $num);
+	while ($i < $imaxinloop) {
+		$obj = $db->fetch_object($result);
 
-        print "<td align=\"right\">".price($obj->amount)."</td>";
-        print "</tr>\n";
+		$localtax_static->label = $obj->label;
+		$localtax_static->id = $obj->rowid;
+		$localtax_static->ref = $obj->rowid;
+		$localtax_static->datev = $obj->datev;
+		$localtax_static->datep = $obj->datep;
+		$localtax_static->amount = $obj->amount;
 
-        $i++;
-    }
-    print '<tr class="liste_total"><td colspan="3">'.$langs->trans("Total").'</td>';
-    print "<td align=\"right\"><b>".price($total)."</b></td></tr>";
+		$total += $obj->amount;
 
-    print "</table>";
-    $db->free($result);
+		if ($mode == 'kanban') {
+			if ($i == 0) {
+				print '<tr class="trkanban"><td colspan="'.$savnbfield.'">';
+				print '<div class="box-flex-container kanban">';
+			}
+			// Output Kanban
+			print $localtax_static->getKanbanView('', array('selected' => in_array($object->id, $arrayofselected)));
+			if ($i == ($imaxinloop - 1)) {
+				print '</div>';
+				print '</td></tr>';
+			}
+		} else {
+			print '<tr class="oddeven">';
+			print "<td>".$localtax_static->getNomUrl(1)."</td>\n";
+			print "<td>".dol_trunc($obj->label, 40)."</td>\n";
+			print '<td class="left">'.dol_print_date($db->jdate($obj->datev), 'day')."</td>\n";
+			print '<td class="left">'.dol_print_date($db->jdate($obj->datep), 'day')."</td>\n";
+
+			print '<td class="right nowraponall"><span class="amount">'.price($obj->amount).'</span></td>';
+			print "</tr>\n";
+		}
+		$i++;
+	}
+	print '<tr class="liste_total"><td colspan="4">'.$langs->trans("Total").'</td>';
+	print '<td class="right"><span class="amount">'.price($total).'</span></td></tr>';
+
+	print "</table>";
+	print '</div>';
+
+	$db->free($result);
+} else {
+	dol_print_error($db);
 }
-else
-{
-    dol_print_error($db);
-}
 
+// End of page
 llxFooter();
 $db->close();

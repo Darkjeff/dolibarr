@@ -1,4 +1,4 @@
--- Copyright (C) ---Put here your own copyright and developer email---
+-- Copyright (C) ---Replace with your own copyright and developer email---
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -11,7 +11,7 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see http://www.gnu.org/licenses/.
+-- along with this program. If not, see https://www.gnu.org/licenses/.
 
 create table llx_mymodule_myobject_extrafields
 (
@@ -20,4 +20,3 @@ create table llx_mymodule_myobject_extrafields
   fk_object                 integer NOT NULL,
   import_key                varchar(14)                          		-- import key
 ) ENGINE=innodb;
-

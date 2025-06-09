@@ -1,6 +1,8 @@
 <?php
-/* Copyright (C) 2005-2011 Laurent Destailleur  <eldy@users.sourceforge.net>
- * Copyright (C) 2005-2006 Regis Houssin        <regis.houssin@capnetworks.com>
+/* Copyright (C) 2005-2011	Laurent Destailleur			<eldy@users.sourceforge.net>
+ * Copyright (C) 2005-2006	Regis Houssin				<regis.houssin@inodbox.com>
+ * Copyright (C) 2024		Alexandre Spangaro			<alexandre@inovea-conseil.com>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -13,7 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -22,21 +24,29 @@
  *      \brief      Page with information of subscriptions of a member
  */
 
+// Load Dolibarr environment
 require '../../main.inc.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/functions2.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/adherents/class/adherent.class.php';
 require_once DOL_DOCUMENT_ROOT.'/core/lib/member.lib.php';
 require_once DOL_DOCUMENT_ROOT.'/adherents/class/subscription.class.php';
 
-$langs->load("companies");
-$langs->load("bills");
-$langs->load("members");
-$langs->load("users");
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 
-if (!$user->rights->adherent->lire)
+// Load translation files required by the page
+$langs->loadLangs(array("companies", "members", "bills", "users"));
+
+if (!$user->hasRight('adherent', 'lire')) {
 	accessforbidden();
+}
 
-$rowid=GETPOST("rowid",'int');
+$rowid = GETPOSTINT("rowid");
 
 
 
@@ -46,16 +56,19 @@ $rowid=GETPOST("rowid",'int');
 
 $form = new Form($db);
 
-llxHeader();
+$title = $langs->trans('Subscription')." - ".$langs->trans('Info');
+$help_url = 'EN:Module_Foundations|FR:Module_Adh&eacute;rents|ES:M&oacute;dulo_Miembros|DE:Modul_Mitglieder';
+
+llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-member page-subscription-card_info');
 
 $object = new Subscription($db);
 $result = $object->fetch($rowid);
 
 $head = subscription_prepare_head($object);
 
-dol_fiche_head($head, 'info', $langs->trans("Subscription"), -1, 'payment');
+print dol_get_fiche_head($head, 'info', $langs->trans("Subscription"), -1, 'payment');
 
-$linkback = '<a href="'.DOL_URL_ROOT.'/adherents/subscription/list.php">'.$langs->trans("BackToList").'</a>';
+$linkback = '<a href="'.DOL_URL_ROOT.'/adherents/subscription/list.php?restore_lastsearch_values=1">'.$langs->trans("BackToList").'</a>';
 
 dol_banner_tab($object, 'rowid', $linkback, 1);
 
@@ -67,14 +80,15 @@ print '<br>';
 
 $object->info($rowid);
 
-print '<table width="100%"><tr><td>';
+print '<table class="centpercent"><tr><td>';
 dol_print_object_info($object);
 print '</td></tr></table>';
 
 print '</div>';
 
 
-dol_fiche_end();
+print dol_get_fiche_end();
 
+// End of page
 llxFooter();
 $db->close();

@@ -1,6 +1,6 @@
 -- ============================================================================
 -- Copyright (C) 2005-2017 Laurent Destailleur  <eldy@users.sourceforge.net>
--- Copyright (C) 2005-2009 Regis Houssin        <regis.houssin@capnetworks.com>
+-- Copyright (C) 2005-2009 Regis Houssin        <regis.houssin@inodbox.com>
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -13,7 +13,7 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ============================================================================
 
@@ -26,6 +26,7 @@ ALTER TABLE llx_facture_fourn ADD INDEX idx_facture_fourn_fk_soc (fk_soc);
 ALTER TABLE llx_facture_fourn ADD INDEX idx_facture_fourn_fk_user_author (fk_user_author);
 ALTER TABLE llx_facture_fourn ADD INDEX idx_facture_fourn_fk_user_valid (fk_user_valid);
 ALTER TABLE llx_facture_fourn ADD INDEX idx_facture_fourn_fk_projet (fk_projet);
+ALTER TABLE llx_facture_fourn ADD INDEX idx_facture_fourn_tms (tms);
 
 ALTER TABLE llx_facture_fourn ADD CONSTRAINT fk_facture_fourn_fk_soc            FOREIGN KEY (fk_soc) REFERENCES llx_societe (rowid);
 ALTER TABLE llx_facture_fourn ADD CONSTRAINT fk_facture_fourn_fk_user_author    FOREIGN KEY (fk_user_author) REFERENCES llx_user (rowid);

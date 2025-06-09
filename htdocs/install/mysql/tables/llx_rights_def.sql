@@ -1,6 +1,6 @@
 -- ============================================================================
--- Copyright (C) 2003 Rodolphe Quiedeville <rodolphe@quiedeville.org>
--- Copyright (C) 2009 Regis Houssin        <regis.houssin@capnetworks.com>
+-- Copyright (C) 2003		Rodolphe Quiedeville	<rodolphe@quiedeville.org>
+-- Copyright (C) 2009-2024	Regis Houssin			<regis.houssin@inodbox.com>
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -13,26 +13,22 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ===========================================================================
 
 create table llx_rights_def
 (
-  id            integer NOT NULL,
-  libelle       varchar(255),
-  module        varchar(64),
-  entity        integer DEFAULT 1 NOT NULL,
-  perms         varchar(50),
-  subperms      varchar(50),
-  type          varchar(1),
-  bydefault     tinyint DEFAULT 0
+  id				integer NOT NULL,
+  entity			integer DEFAULT 1 NOT NULL,	-- Multicompany id
+  libelle			varchar(255),
+  module			varchar(64),
+  module_origin		varchar(64),				-- if the permission is for a module but provided by another module, we add here the name of the module that provides the permission
+  module_position	integer DEFAULT 0 NOT NULL,
+  family_position	integer DEFAULT 0 NOT NULL,
+  perms				varchar(50),
+  subperms			varchar(50),
+  type				varchar(1),					-- deprecated
+  bydefault			tinyint DEFAULT 0,
+  enabled			text NULL					-- Condition to show or hide
 )ENGINE=innodb;
-
--- 
--- List of codes for the field entity
---
--- 1 : first company user
--- 2 : second company user
--- 3 : etc...
---

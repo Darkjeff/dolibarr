@@ -12,7 +12,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -31,15 +31,42 @@
  * @param   int		$entitytotest   Number of instance (always 1 if module multicompany not enabled)
  * @return	string					Login if OK, '' if KO
 */
-function check_user_password_http($usertotest,$passwordtotest,$entitytotest)
+function check_user_password_http($usertotest, $passwordtotest, $entitytotest)
 {
-	dol_syslog("functions_http::check_user_password_http _SERVER[REMOTE_USER]=".(empty($_SERVER["REMOTE_USER"])?'':$_SERVER["REMOTE_USER"]));
+	global $db, $langs;
 
-	$login='';
-	if (! empty($_SERVER["REMOTE_USER"]))
-	{
-		$login=$_SERVER["REMOTE_USER"];
+	dol_syslog("functions_http::check_user_password_http _SERVER[REMOTE_USER]=".(empty($_SERVER["REMOTE_USER"]) ? '' : $_SERVER["REMOTE_USER"]));
+
+	$login = '';
+	if (!empty($_SERVER["REMOTE_USER"])) {
+		$login = $_SERVER["REMOTE_USER"];
+
+		require_once DOL_DOCUMENT_ROOT.'/core/lib/date.lib.php';
+
+		// Note: Test on date validity is done later natively with isNotIntoValidityDateRange() by core after calling checkLoginPassEntity() that call this method
 	}
 
 	return $login;
+}
+
+
+/**
+ * Decode the value found into the Authorization HTTP header.
+ * Ex: "Authorization: Basic bG9naW46cGFzcw==", $value is "Basic bG9naW46cGFzcw==" and after base64decode is "login:pass"
+ * Note: the $_SERVER["REMOTE_USER"] contains only the login used in the HTTP Basic form
+ * Method not used yet, but we keep it for some dev/test purposes.
+ *
+ * @param 	string	$value 		Ex: $_SERVER["REMOTE_USER"]
+ * @return 	Object 				object.login & object.password
+ */
+function decodeHttpBasicAuth($value)
+{
+	$encoded_basic_auth = substr($value, 6);	// Remove the "Basic " string
+	$decoded_basic_auth = base64_decode($encoded_basic_auth);
+	$credentials_basic_auth = explode(':', $decoded_basic_auth);
+
+	return (object) [
+		'username'=> $credentials_basic_auth[0],
+		'password' => $credentials_basic_auth[1]
+	];
 }

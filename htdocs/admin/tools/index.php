@@ -1,7 +1,8 @@
 <?php
 /* Copyright (C) 2001-2004	Rodolphe Quiedeville	<rodolphe@quiedeville.org>
  * Copyright (C) 2004-2006	Laurent Destailleur		<eldy@users.sourceforge.net>
- * Copyright (C) 2005-2012	Regis Houssin			<regis.houssin@capnetworks.com>
+ * Copyright (C) 2005-2012	Regis Houssin			<regis.houssin@inodbox.com>
+ * Copyright (C) 2024       Frédéric France         <frederic.france@free.fr>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,7 +15,7 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
@@ -22,13 +23,23 @@
  * 		\brief      Page d'accueil de l'espace outils admin
  */
 
+// Load Dolibarr environment
 require '../../main.inc.php';
 
-$langs->load("admin");
-$langs->load("companies");
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 
-if (! $user->admin)
+// Load translation files required by the page
+$langs->loadLangs(array("companies", "admin"));
+
+if (!$user->admin) {
 	accessforbidden();
+}
 
 
 /*
@@ -37,12 +48,12 @@ if (! $user->admin)
 
 $form = new Form($db);
 
-$title=$langs->trans("AdminTools");
+$title = $langs->trans("AdminTools");
 //if (GETPOST('leftmenu',"aZ09") == 'admintools') $title=$langs->trans("ModulesSystemTools");
 
-llxHeader('', $title);
+llxHeader('', $title, '', '', 0, 0, '', '', '', 'mod-admin page-tools_index');
 
-print load_fiche_titre($title,'','title_setup');
+print load_fiche_titre($title, '', 'title_setup');
 
 print $langs->trans("SystemToolsAreaDesc").'<br>';
 print "<br>";
@@ -54,8 +65,8 @@ print '<br><br>';
 
 // Show logo
 //print '<div class="center"><div class="logo_setup"></div></div>';
-print '<center><div class="logo_setup"></div></center>';				// For a reason I don't know, the div class="center does not works, we must keep the <center>
+print '<center><div class="logo_setup"></div></center>'; // For a reason I don't know, the div class="center does not works, we must keep the <center>
 
-
+// End of page
 llxFooter();
 $db->close();

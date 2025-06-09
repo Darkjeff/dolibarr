@@ -1,5 +1,7 @@
 <?php
 /* Copyright (C) 2015      Juanjo Menent	    <jmenent@2byte.es>
+ * Copyright (C) 2024-2025  Frédéric France             <frederic.france@free.fr>
+ * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,80 +14,107 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * or see http://www.gnu.org/
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * or see https://www.gnu.org/
  */
 
 /**
- * \file       htdocs/core/modules/payment/mod_payment_bronan.php
+ * \file       htdocs/core/modules/supplier_payment/mod_supplier_payment_bronan.php
  * \ingroup    supplier_payment
  * \brief      File containing class for numbering module Bronan
  */
 
-require_once DOL_DOCUMENT_ROOT .'/core/modules/supplier_payment/modules_supplier_payment.php';
+require_once DOL_DOCUMENT_ROOT.'/core/modules/supplier_payment/modules_supplier_payment.php';
 
 /**
  *	Class to manage customer payment numbering rules Cicada
  */
 class mod_supplier_payment_bronan extends ModeleNumRefSupplierPayments
 {
-	var $version='dolibarr';		// 'development', 'experimental', 'dolibarr'
-	var $prefix='SPAY';
-	var $error='';
-	var $nom='Bronan';
+	/**
+	 * Dolibarr version of the loaded document
+	 * @var string Version, possible values are: 'development', 'experimental', 'dolibarr', 'dolibarr_deprecated' or a version string like 'x.y.z'''|'development'|'dolibarr'|'experimental'
+	 */
+	public $version = 'dolibarr'; // 'development', 'experimental', 'dolibarr'
 
+	/**
+	 * @var string prefix
+	 */
+	public $prefix = 'SPAY';
 
-    /**
-     *  Return description of numbering module
-     *
-     *  @return     string      Text with description
-     */
-    function info()
-    {
-    	global $langs;
-      	return $langs->trans("SimpleNumRefModelDesc",$this->prefix);
-    }
+	/**
+	 * @var string Error code (or message)
+	 */
+	public $error = '';
+
+	/**
+	 * @var string Nom du modele
+	 * @deprecated
+	 * @see $name
+	 */
+	public $nom = 'Bronan';
+
+	/**
+	 * @var string model name
+	 */
+	public $name = 'Bronan';
 
 
 	/**
-	 *  Renvoi un exemple de numerotation
+	 *  Return description of numbering module
+	 *
+	 *	@param	Translate	$langs      Lang object to use for output
+	 *  @return string      			Descriptive text
+	 */
+	public function info($langs)
+	{
+		global $langs;
+		return $langs->trans("SimpleNumRefModelDesc", $this->prefix);
+	}
+
+
+	/**
+	 *  Return an example of numbering
 	 *
 	 *  @return     string      Example
 	 */
-	function getExample()
+	public function getExample()
 	{
 		return $this->prefix."0501-0001";
 	}
 
 
 	/**
-	 *  Test si les numeros deje en vigueur dans la base ne provoquent pas de
-	 *  de conflits qui empechera cette numerotation de fonctionner.
+	 *  Checks if the numbers already in the database do not
+	 *  cause conflicts that would prevent this numbering working.
 	 *
-	 *  @return     boolean     false si conflit, true si ok
+	 *	@param	CommonObject	$object		Object we need next value for
+	 *  @return boolean     				false if KO (there is a conflict), true if OK
 	 */
-	function canBeActivated()
+	public function canBeActivated($object)
 	{
-		global $conf,$langs,$db;
+		global $conf, $langs, $db;
 
-		$payyymm=''; $max='';
+		$payyymm = '';
+		$max = '';
 
-		$posindice=9;
+		$posindice = strlen($this->prefix) + 6;
 		$sql = "SELECT MAX(CAST(SUBSTRING(ref FROM ".$posindice.") AS SIGNED)) as max";
-		$sql.= " FROM ".MAIN_DB_PREFIX."paiementfourn";
-		$sql.= " WHERE ref LIKE '".$db->escape($this->prefix)."____-%'";
-		$sql.= " AND entity = ".$conf->entity;
+		$sql .= " FROM ".MAIN_DB_PREFIX."paiementfourn";
+		$sql .= " WHERE ref LIKE '".$db->escape($this->prefix)."____-%'";
+		$sql .= " AND entity = ".$conf->entity;
 
-		$resql=$db->query($sql);
-		if ($resql)
-		{
+		$resql = $db->query($sql);
+		if ($resql) {
 			$row = $db->fetch_row($resql);
-			if ($row) { $payyymm = substr($row[0],0,6); $max=$row[0]; }
+			if ($row) {
+				$payyymm = substr($row[0], 0, 6);
+				$max = $row[0];
+			}
 		}
-		if ($payyymm && ! preg_match('/'.$this->prefix.'[0-9][0-9][0-9][0-9]/i',$payyymm))
-		{
+		if ($payyymm && !preg_match('/'.$this->prefix.'[0-9][0-9][0-9][0-9]/i', $payyymm)) {
 			$langs->load("errors");
-			$this->error=$langs->trans('ErrorNumRefModel', $max);
+			$this->error = $langs->trans('ErrorNumRefModel', $max);
 			return false;
 		}
 
@@ -95,56 +124,45 @@ class mod_supplier_payment_bronan extends ModeleNumRefSupplierPayments
 	/**
 	 * 	Return next free value
 	 *
-	 *  @param	Societe		$objsoc     Object thirdparty
-	 *  @param  Object		$object		Object we need next value for
-	 *  @return string      			Value if KO, <0 if KO
+	 *  @param	Societe			$objsoc		Object thirdparty
+	 *  @param  ?PaiementFourn	$object		Object we need next value for
+	 *  @return string|int<-1,0>			Next value if OK, <=0 if KO
 	 */
-	function getNextValue($objsoc,$object)
+	public function getNextValue($objsoc, $object)
 	{
-		global $db,$conf;
+		global $db, $conf;
 
-		// D'abord on recupere la valeur max
-		$posindice=10;
+		// First, we get the max value
+		$posindice = strlen($this->prefix) + 6;
 		$sql = "SELECT MAX(CAST(SUBSTRING(ref FROM ".$posindice.") AS SIGNED)) as max";
-		$sql.= " FROM ".MAIN_DB_PREFIX."paiementfourn";
-		$sql.= " WHERE ref LIKE '".$db->escape($this->prefix)."____-%'";
-		$sql.= " AND entity = ".$conf->entity;
+		$sql .= " FROM ".MAIN_DB_PREFIX."paiementfourn";
+		$sql .= " WHERE ref LIKE '".$db->escape($this->prefix)."____-%'";
+		$sql .= " AND entity = ".$conf->entity;
 
-		$resql=$db->query($sql);
-		if ($resql)
-		{
+		$resql = $db->query($sql);
+		if ($resql) {
 			$obj = $db->fetch_object($resql);
-			if ($obj) $max = intval($obj->max);
-			else $max=0;
-		}
-		else
-		{
+			if ($obj) {
+				$max = intval($obj->max);
+			} else {
+				$max = 0;
+			}
+		} else {
 			dol_syslog(__METHOD__, LOG_DEBUG);
 			return -1;
 		}
 
 		//$date=time();
-		$date=$object->datepaye;
-		$yymm = strftime("%y%m",$date);
+		$date = $object->datepaye;
+		$yymm = dol_print_date($date, "%y%m");
 
-    	if ($max >= (pow(10, 4) - 1)) $num=$max+1;	// If counter > 9999, we do not format on 4 chars, we take number as it is
-    	else $num = sprintf("%04s",$max+1);
+		if ($max >= (pow(10, 4) - 1)) {
+			$num = $max + 1; // If counter > 9999, we do not format on 4 chars, we take number as it is
+		} else {
+			$num = sprintf("%04d", $max + 1);
+		}
 
 		dol_syslog(__METHOD__." return ".$this->prefix.$yymm."-".$num);
 		return $this->prefix.$yymm."-".$num;
 	}
-
-
-	/**
-	 *  Return next free value
-	 *
-	 *  @param	Societe		$objsoc     Object third party
-	 * 	@param	string		$objforref	Object for number to search
-	 *  @return string      			Next free value
-	 */
-	function payment_get_num($objsoc,$objforref)
-	{
-		return $this->getNextValue($objsoc,$objforref);
-	}
-
 }

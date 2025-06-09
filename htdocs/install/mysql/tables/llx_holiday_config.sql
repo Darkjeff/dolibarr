@@ -12,14 +12,15 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ===================================================================
 
-CREATE TABLE llx_holiday_config 
+CREATE TABLE llx_holiday_config
 (
-rowid    integer NOT NULL AUTO_INCREMENT PRIMARY KEY,
-name     VARCHAR(128) NOT NULL,
-value    TEXT NULL
-) 
+	rowid    integer NOT NULL AUTO_INCREMENT PRIMARY KEY,
+	entity 	 integer DEFAULT 1 NOT NULL, -- Multi company id
+	name     VARCHAR(128) NOT NULL,
+	value    TEXT NULL
+)
 ENGINE=innodb;

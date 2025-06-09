@@ -1,5 +1,7 @@
 <?php
-/* Copyright (C) 2014-2016  Alexandre Spangaro	<aspangaro@zendsi.com>
+/* Copyright (C) 2014-2024  Alexandre Spangaro  <aspangaro@easya.solutions>
+ * Copyright (C) 2018-2024  Frédéric France     <frederic.france@free.fr>
+ * Copyright (C) 2025		MDW					<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,86 +14,123 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
 /**
  * \file        htdocs/accountancy/admin/fiscalyear_card.php
- * \ingroup     Advanced accountancy
+ * \ingroup     Accountancy (Double entries)
  * \brief       Page to show a fiscal year
  */
 
+// Load Dolibarr environment
 require '../../main.inc.php';
 
-require_once DOL_DOCUMENT_ROOT . '/core/lib/fiscalyear.lib.php';
-require_once DOL_DOCUMENT_ROOT . '/core/class/fiscalyear.class.php';
+require_once DOL_DOCUMENT_ROOT.'/core/lib/fiscalyear.lib.php';
+require_once DOL_DOCUMENT_ROOT.'/core/class/fiscalyear.class.php';
 
-$langs->load("admin");
-$langs->load("compta");
+/**
+ * @var Conf $conf
+ * @var DoliDB $db
+ * @var HookManager $hookmanager
+ * @var Translate $langs
+ * @var User $user
+ */
 
-// Security check
-if ($user->societe_id > 0)
-	accessforbidden();
-if (empty($user->rights->accounting->fiscalyear))
-	accessforbidden();
+// Load translation files required by the page
+$langs->loadLangs(array("admin", "compta"));
+
+// Get parameters
+$id = GETPOSTINT('id');
+$ref = GETPOST('ref', 'alpha');
+
+$action = GETPOST('action', 'aZ09');
+$confirm = GETPOST('confirm', 'alpha');
+$cancel = GETPOST('cancel', 'aZ09');
+$contextpage = GETPOST('contextpage', 'aZ') ? GETPOST('contextpage', 'aZ') : str_replace('_', '', basename(dirname(__FILE__)).basename(__FILE__, '.php')); // To manage different context of search
+$backtopage = GETPOST('backtopage', 'alpha');					// if not set, a default page will be used
+$backtopageforcancel = GETPOST('backtopageforcancel', 'alpha');	// if not set, $backtopage will be used
+$backtopagejsfields = GETPOST('backtopagejsfields', 'alpha');
+$dol_openinpopup = GETPOST('dol_openinpopup', 'aZ09');
+
+if (!empty($backtopagejsfields)) {
+	$tmpbacktopagejsfields = explode(':', $backtopagejsfields);
+	$dol_openinpopup = preg_replace('/[^a-z0-9_]/i', '', $tmpbacktopagejsfields[0]);
+}
 
 $error = 0;
 
-$action = GETPOST('action', 'alpha');
-$confirm = GETPOST('confirm', 'alpha');
-$id = GETPOST('id', 'int');
+// Initialize a technical objects
+$object = new Fiscalyear($db);
+$extrafields = new ExtraFields($db);
 
-// List of statut
-static $tmpstatut2label = array (
+// Load object
+include DOL_DOCUMENT_ROOT.'/core/actions_fetchobject.inc.php'; // Must be 'include', not 'include_once'.
+
+// List of status
+static $tmpstatus2label = array(
 		'0' => 'OpenFiscalYear',
 		'1' => 'CloseFiscalYear'
 );
-$statut2label = array (
-		''
+$status2label = array(
+		'' => ''
 );
-foreach ( $tmpstatut2label as $key => $val )
-	$statut2label[$key] = $langs->trans($val);
+foreach ($tmpstatus2label as $key => $val) {
+	$status2label[$key] = $langs->trans($val);
+}
 
-$object = new Fiscalyear($db);
+$date_start = dol_mktime(0, 0, 0, GETPOSTINT('fiscalyearmonth'), GETPOSTINT('fiscalyearday'), GETPOSTINT('fiscalyearyear'));
+$date_end = dol_mktime(0, 0, 0, GETPOSTINT('fiscalyearendmonth'), GETPOSTINT('fiscalyearendday'), GETPOSTINT('fiscalyearendyear'));
 
-$date_start = dol_mktime(0, 0, 0, GETPOST('fiscalyearmonth', 'int'), GETPOST('fiscalyearday', 'int'), GETPOST('fiscalyearyear', 'int'));
-$date_end = dol_mktime(0, 0, 0, GETPOST('fiscalyearendmonth', 'int'), GETPOST('fiscalyearendday', 'int'), GETPOST('fiscalyearendyear', 'int'));
+$permissiontoadd = $user->hasRight('accounting', 'fiscalyear', 'write');
+
+// Security check
+if ($user->socid > 0) {
+	accessforbidden();
+}
+if (!$permissiontoadd) {
+	accessforbidden();
+}
 
 
 /*
  * Actions
  */
 
-if ($action == 'confirm_delete' && $confirm == "yes") {
-	$result = $object->delete($id);
+$parameters = array();
+$reshook = $hookmanager->executeHooks('doActions', $parameters, $object, $action); // Note that $action and $object may have been modified by some hooks
+if ($reshook < 0) {
+	setEventMessages($hookmanager->error, $hookmanager->errors, 'errors');
+}
+
+if ($action == 'confirm_delete' && $confirm == "yes" && $permissiontoadd) {
+	$result = $object->delete($user);
 	if ($result >= 0) {
 		header("Location: fiscalyear.php");
 		exit();
 	} else {
 		setEventMessages($object->error, $object->errors, 'errors');
 	}
-}
-
-else if ($action == 'add') {
-	if (! GETPOST('cancel', 'alpha')) {
+} elseif ($action == 'add' && $permissiontoadd) {
+	if (!GETPOST('cancel', 'alpha')) {
 		$error = 0;
 
 		$object->date_start = $date_start;
 		$object->date_end = $date_end;
 		$object->label = GETPOST('label', 'alpha');
-		$object->statut = GETPOST('statut', 'int');
+		$object->status = GETPOSTINT('status');
 		$object->datec = dol_now();
 
 		if (empty($object->date_start) && empty($object->date_end)) {
 			setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("Date")), null, 'errors');
-			$error ++;
+			$error++;
 		}
 		if (empty($object->label)) {
 			setEventMessages($langs->trans("ErrorFieldRequired", $langs->transnoentitiesnoconv("Label")), null, 'errors');
-			$error ++;
+			$error++;
 		}
 
-		if (! $error) {
+		if (!$error) {
 			$db->begin();
 
 			$id = $object->create($user);
@@ -99,7 +138,7 @@ else if ($action == 'add') {
 			if ($id > 0) {
 				$db->commit();
 
-				header("Location: " . $_SERVER["PHP_SELF"] . "?id=" . $id);
+				header("Location: ".$_SERVER["PHP_SELF"]."?id=".$id);
 				exit();
 			} else {
 				$db->rollback();
@@ -114,32 +153,41 @@ else if ($action == 'add') {
 		header("Location: ./fiscalyear.php");
 		exit();
 	}
-}
-
-// Update record
-else if ($action == 'update') {
-	if (! GETPOST('cancel', 'alpha')) {
+} elseif ($action == 'update' && $permissiontoadd) {
+	// Update record
+	if (!GETPOST('cancel', 'alpha')) {
 		$result = $object->fetch($id);
 
-		$object->date_start = empty($_POST["fiscalyear"]) ? '' : $date_start;
-		$object->date_end = empty($_POST["fiscalyearend"]) ? '' : $date_end;
+		$object->date_start = GETPOST("fiscalyear") ? $date_start : '';
+		$object->date_end = GETPOST("fiscalyearend") ? $date_end : '';
 		$object->label = GETPOST('label', 'alpha');
-		$object->statut = GETPOST('statut', 'int');
+		$object->status = GETPOSTINT('status');
 
 		$result = $object->update($user);
 
 		if ($result > 0) {
-			header("Location: " . $_SERVER["PHP_SELF"] . "?id=" . $id);
+			header("Location: ".$_SERVER["PHP_SELF"]."?id=".$id);
 			exit();
 		} else {
 			setEventMessages($object->error, $object->errors, 'errors');
 		}
 	} else {
-		header("Location: " . $_SERVER["PHP_SELF"] . "?id=" . $id);
+		header("Location: ".$_SERVER["PHP_SELF"]."?id=".$id);
 		exit();
 	}
-}
+} elseif ($action == 'reopen' && $permissiontoadd && getDolGlobalString('ACCOUNTING_CAN_REOPEN_CLOSED_PERIOD')) {
+	$result = $object->fetch($id);
 
+	$object->status = GETPOSTINT('status');
+	$result = $object->update($user);
+
+	if ($result > 0) {
+		header("Location: ".$_SERVER["PHP_SELF"]."?id=".$id);
+		exit();
+	} else {
+		setEventMessages($object->error, $object->errors, 'errors');
+	}
+}
 
 
 /*
@@ -148,175 +196,206 @@ else if ($action == 'update') {
 
 $form = new Form($db);
 
-$title = $langs->trans("Fiscalyear") . " - " . $langs->trans("Card");
-$helpurl = "";
-llxHeader("",$title,$helpurl);
+$title = $langs->trans("Fiscalyear")." - ".$langs->trans("Card");
+if ($action == 'create') {
+	$title = $langs->trans("NewFiscalYear");
+}
 
-if ($action == 'create')
-{
-	print load_fiche_titre($langs->trans("NewFiscalYear"));
+$help_url = 'EN:Module_Double_Entry_Accounting#Setup|FR:Module_Comptabilit&eacute;_en_Partie_Double#Configuration';
 
-	print '<form action="' . $_SERVER["PHP_SELF"] . '" method="POST">';
-	print '<input type="hidden" name="token" value="' . $_SESSION['newtoken'] . '">';
+llxHeader('', $title, $help_url, '', 0, 0, '', '', '', 'mod-accountancy page-fiscalyear');
+
+if ($action == 'create') {
+	print load_fiche_titre($title, '', 'object_'.$object->picto);
+
+	print '<form method="POST" action="'.$_SERVER["PHP_SELF"].'">';
+	print '<input type="hidden" name="token" value="'.newToken().'">';
 	print '<input type="hidden" name="action" value="add">';
 
-	dol_fiche_head();
+	print dol_get_fiche_head(array(), '');
 
-	print '<table class="border" width="100%">';
+	print '<table class="border centpercent tableforfieldcreate">'."\n";
 
 	// Label
-	print '<tr><td class="titlefieldcreate fieldrequired">' . $langs->trans("Label") . '</td><td><input name="label" size="32" value="' . GETPOST("label") . '"></td></tr>';
+	print '<tr><td class="titlefieldcreate fieldrequired">'.$langs->trans("Label").'</td><td><input name="label" size="32" value="'.GETPOST('label', 'alpha').'"></td></tr>';
 
 	// Date start
-	print '<tr><td class="fieldrequired">' . $langs->trans("DateStart") . '</td><td>';
-	print $form->select_date(($date_start ? $date_start : ''), 'fiscalyear');
+	print '<tr><td class="fieldrequired">'.$langs->trans("DateStart").'</td><td>';
+	print $form->selectDate(($date_start ? $date_start : ''), 'fiscalyear');
 	print '</td></tr>';
 
 	// Date end
-	print '<tr><td class="fieldrequired">' . $langs->trans("DateEnd") . '</td><td>';
-	print $form->select_date(($date_end ? $date_end : - 1), 'fiscalyearend');
+	print '<tr><td class="fieldrequired">'.$langs->trans("DateEnd").'</td><td>';
+	print $form->selectDate(($date_end ? $date_end : - 1), 'fiscalyearend');
 	print '</td></tr>';
 
 	/*
-	// Statut
+	// Status
 	print '<tr>';
 	print '<td class="fieldrequired">' . $langs->trans("Status") . '</td>';
 	print '<td class="valeur">';
-	print $form->selectarray('statut', $statut2label, GETPOST('statut'));
+	print $form->selectarray('status', $status2label, GETPOST('status', 'int'));
 	print '</td></tr>';
 	*/
 
-	print '</table>';
+	// Common attributes
+	//include DOL_DOCUMENT_ROOT.'/core/tpl/commonfields_add.tpl.php';
 
-	dol_fiche_end();
+	// Other attributes
+	//include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_add.tpl.php';
 
-	print '<div class="center">';
-	print '<input class="button" type="submit" value="' . $langs->trans("Save") . '">';
-	print '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
-	print '<input class="button" type="submit" name="cancel" value="' . $langs->trans("Cancel") . '">';
-	print '</div>';
+	print '</table>'."\n";
+
+	print dol_get_fiche_end();
+
+	print $form->buttonsSaveCancel("Create");
 
 	print '</form>';
-} else if ($id) {
-	$result = $object->fetch($id);
-	if ($result > 0) {
-		$head = fiscalyear_prepare_head($object);
 
-		if ($action == 'edit') {
-			dol_fiche_head($head, 'card', $langs->trans("Fiscalyear"), 0, 'cron');
+	dol_set_focus('input[name="label"]');
+}
 
-			print '<form name="update" action="' . $_SERVER["PHP_SELF"] . '" method="POST">' . "\n";
-			print '<input type="hidden" name="token" value="' . $_SESSION['newtoken'] . '">';
-			print '<input type="hidden" name="action" value="update">';
-			print '<input type="hidden" name="id" value="' . $id . '">';
 
-			print '<table class="border" width="100%">';
+// Part to edit record
+if (($id || $ref) && $action == 'edit') {
+	print load_fiche_titre($langs->trans("Fiscalyear"), '', 'object_'.$object->picto);
 
-			// Ref
-			print "<tr>";
-			print '<td class="titlefieldcreate titlefield">' . $langs->trans("Ref") . '</td><td>';
-			print $object->ref;
-			print '</td></tr>';
+	print '<form method="POST" name="update" action="'.$_SERVER["PHP_SELF"].'">'."\n";
+	print '<input type="hidden" name="token" value="'.newToken().'">';
+	print '<input type="hidden" name="action" value="update">';
+	print '<input type="hidden" name="id" value="'.$object->id.'">';
+	if ($backtopage) {
+		print '<input type="hidden" name="backtopage" value="'.$backtopage.'">';
+	}
+	if ($backtopageforcancel) {
+		print '<input type="hidden" name="backtopageforcancel" value="'.$backtopageforcancel.'">';
+	}
 
-			// Label
-			print '<tr><td class="fieldrequired">' . $langs->trans("Label") . '</td><td>';
-			print '<input name="label" class="flat" size="32" value="' . $object->label . '">';
-			print '</td></tr>';
+	print dol_get_fiche_head();
 
-			// Date start
-			print '<tr><td class="fieldrequired">' . $langs->trans("DateStart") . '</td><td>';
-			print $form->select_date($object->date_start ? $object->date_start : - 1, 'fiscalyear');
-			print '</td></tr>';
+	print '<table class="border centpercent tableforfieldedit">'."\n";
 
-			// Date end
-			print '<tr><td class="fieldrequired">' . $langs->trans("DateEnd") . '</td><td>';
-			print $form->select_date($object->date_end ? $object->date_end : - 1, 'fiscalyearend');
-			print '</td></tr>';
+	// Ref
+	print "<tr>";
+	print '<td class="titlefieldcreate titlefield">'.$langs->trans("Ref").'</td><td>';
+	print $object->ref;
+	print '</td></tr>';
 
-			// Statut
-			print '<tr><td>' . $langs->trans("Statut") . '</td><td>';
-			// print $form->selectarray('statut', $statut2label, $object->statut);
-			print $object->getLibStatut(4);
-			print '</td></tr>';
+	// Label
+	print '<tr><td class="fieldrequired">'.$langs->trans("Label").'</td><td>';
+	print '<input name="label" class="flat" size="32" value="'.$object->label.'">';
+	print '</td></tr>';
 
-			print '</table>';
+	// Date start
+	print '<tr><td class="fieldrequired">'.$langs->trans("DateStart").'</td><td>';
+	print $form->selectDate($object->date_start ? $object->date_start : - 1, 'fiscalyear');
+	print '</td></tr>';
 
-			print '<br><div class="center">';
-			print '<input type="submit" class="button" value="' . $langs->trans("Save") . '">';
-			print '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
-			print '<input type="submit" name="cancel" class="button" value="' . $langs->trans("Cancel") . '">';
-			print '</div>';
+	// Date end
+	print '<tr><td class="fieldrequired">'.$langs->trans("DateEnd").'</td><td>';
+	print $form->selectDate($object->date_end ? $object->date_end : - 1, 'fiscalyearend');
+	print '</td></tr>';
 
-			print '</form>';
+	// Status
+	print '<tr><td>'.$langs->trans("Status").'</td><td>';
+	print $object->getLibStatut(4);
+	print '</td></tr>';
 
-			dol_fiche_end();
-		} else {
-			/*
-			 * Confirm delete
-			 */
-			if ($action == 'delete') {
-				print $form->formconfirm($_SERVER["PHP_SELF"] . "?id=" . $id, $langs->trans("DeleteFiscalYear"), $langs->trans("ConfirmDeleteFiscalYear"), "confirm_delete");
-			}
+	// Common attributes
+	//include DOL_DOCUMENT_ROOT.'/core/tpl/commonfields_edit.tpl.php';
 
-			dol_fiche_head($head, 'card', $langs->trans("Fiscalyear"), 0, 'cron');
+	// Other attributes
+	//include DOL_DOCUMENT_ROOT.'/core/tpl/extrafields_edit.tpl.php';
 
-			print '<table class="border" width="100%">';
+	print '</table>';
 
-			$linkback = '<a href="' . DOL_URL_ROOT . '/accountancy/admin/fiscalyear.php">' . $langs->trans("BackToList") . '</a>';
+	print dol_get_fiche_end();
 
-			// Ref
-			print '<tr><td class="titlefield">' . $langs->trans("Ref") . '</td><td width="50%">';
-			print $object->ref;
-			print '</td><td>';
-			print $linkback;
-			print '</td></tr>';
+	print $form->buttonsSaveCancel();
 
-			// Label
-			print '<tr><td class="tdtop">';
-			print $form->editfieldkey("Label", 'label', $object->label, $object, $conf->global->MAIN_EDIT_ALSO_INLINE, 'alpha:32');
-			print '</td><td colspan="2">';
-			print $form->editfieldval("Label", 'label', $object->label, $object, $conf->global->MAIN_EDIT_ALSO_INLINE, 'alpha:32');
-			print "</td></tr>";
+	print '</form>';
+}
 
-			// Date start
-			print '<tr><td>';
-			print $form->editfieldkey("DateStart", 'date_start', $object->date_start, $object, $conf->global->MAIN_EDIT_ALSO_INLINE, 'datepicker');
-			print '</td><td colspan="2">';
-			print $form->editfieldval("DateStart", 'date_start', $object->date_start, $object, $conf->global->MAIN_EDIT_ALSO_INLINE, 'datepicker');
-			print '</td></tr>';
+// Part to show record
+if ($object->id > 0 && (empty($action) || ($action != 'edit' && $action != 'create'))) {
+	$head = fiscalyear_prepare_head($object);
 
-			// Date end
-			print '<tr><td>';
-			print $form->editfieldkey("DateEnd", 'date_end', $object->date_end, $object, $conf->global->MAIN_EDIT_ALSO_INLINE, 'datepicker');
-			print '</td><td colspan="2">';
-			print $form->editfieldval("DateEnd", 'date_end', $object->date_end, $object, $conf->global->MAIN_EDIT_ALSO_INLINE, 'datepicker');
-			print '</td></tr>';
+	print dol_get_fiche_head($head, 'card', $langs->trans("Fiscalyear"), -1, $object->picto, 0, '', '', 0, '', 1);
 
-			// Statut
-			print '<tr><td>' . $langs->trans("Status") . '</td><td colspan="2">' . $object->getLibStatut(4) . '</td></tr>';
+	$morehtmlref = '';
+	//$morehtmlref .= '<div class="refidno">';
+	//$morehtmlref .= '</div>';
 
-			print "</table>";
+	$formconfirm = '';
 
-			dol_fiche_end();
+	// Confirmation to delete
+	if ($action == 'delete') {
+		$formconfirm = $form->formconfirm($_SERVER["PHP_SELF"]."?id=".$object->id, $langs->trans("DeleteFiscalYear"), $langs->trans("ConfirmDeleteFiscalYear"), "confirm_delete", '', 0, 1);
+	}
 
-			if (! empty($user->rights->accounting->fiscalyear))
-			{
-    			/*
-    			 * Barre d'actions
-    			 */
-    			print '<div class="tabsAction">';
+	// Print form confirm
+	print $formconfirm;
 
-    			print '<a class="butAction" href="' . $_SERVER["PHP_SELF"] . '?action=edit&id=' . $id . '">' . $langs->trans('Modify') . '</a>';
+	// Object card
+	// ------------------------------------------------------------
+	$linkback = '<a href="'.DOL_URL_ROOT.'/accountancy/admin/fiscalyear.php?restore_lastsearch_values=1">'.$langs->trans("BackToList").'</a>';
 
-    			// print '<a class="butActionDelete" href="' . $_SERVER["PHP_SELF"] . '?action=delete&id=' . $id . '">' . $langs->trans('Delete') . '</a>';
+	dol_banner_tab($object, 'ref', $linkback, 1, 'ref', 'ref', $morehtmlref);
 
-    			print '</div>';
-			}
+
+	print '<div class="fichecenter">';
+	print '<div class="fichehalfleft">';
+	print '<div class="underbanner clearboth"></div>';
+	print '<table class="border centpercent tableforfield">'."\n";
+
+	// Label
+	print '<tr><td class="tdtop">';
+	print $form->editfieldkey("Label", 'label', $object->label, $object, 0, 'alpha:32');
+	print '</td><td>';
+	print $form->editfieldval("Label", 'label', $object->label, $object, 0, 'alpha:32');
+	print "</td></tr>";
+
+	// Date start
+	print '<tr><td>';
+	print $form->editfieldkey("DateStart", 'date_start', (string) $object->date_start, $object, 0, 'datepicker');
+	print '</td><td>';
+	print $form->editfieldval("DateStart", 'date_start', $object->date_start, $object, 0, 'datepicker');
+	print '</td></tr>';
+
+	// Date end
+	print '<tr><td>';
+	print $form->editfieldkey("DateEnd", 'date_end', (string) $object->date_end, $object, 0, 'datepicker');
+	print '</td><td>';
+	print $form->editfieldval("DateEnd", 'date_end', $object->date_end, $object, 0, 'datepicker');
+	print '</td></tr>';
+
+	print '</table>';
+	print '</div>';
+	print '</div>';
+
+	print '<div class="clearboth"></div>';
+
+	print dol_get_fiche_end();
+
+
+	/*
+	 * Action bar
+	 */
+	if ($user->hasRight('accounting', 'fiscalyear', 'write')) {
+		print '<div class="tabsAction">';
+
+		if (getDolGlobalString('ACCOUNTING_CAN_REOPEN_CLOSED_PERIOD') && $object->status == $object::STATUS_CLOSED) {
+			print dolGetButtonAction($langs->trans("ReOpen"), '', 'reopen', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=reopen&token='.newToken(), 'reopen', (int) $permissiontoadd);
 		}
-	} else {
-		dol_print_error($db);
+
+		print '<a class="butAction" href="'.$_SERVER["PHP_SELF"].'?action=edit&token='.newToken().'&id='.$id.'">'.$langs->trans('Modify').'</a>';
+
+		//print dolGetButtonAction($langs->trans("Delete"), '', 'delete', $_SERVER["PHP_SELF"].'?id='.$object->id.'&action=delete&token='.newToken(), 'delete', $permissiontodelete);
+
+		print '</div>';
 	}
 }
 
+// End of page
 llxFooter();
 $db->close();

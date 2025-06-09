@@ -1,5 +1,6 @@
 <?php
 /* Copyright (C) 2015      Juanjo Menent	    <jmenent@2byte.es>
+ * Copyright (C) 2024		MDW							<mdeweerd@users.noreply.github.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,90 +13,30 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * or see http://www.gnu.org/
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * or see https://www.gnu.org/
  */
+
+require_once DOL_DOCUMENT_ROOT.'/core/class/commonnumrefgenerator.class.php';
 
 /**
- *  \class      ModeleNumRefPayments
- *  \brief      Payment numbering references mother class
+ * Payment numbering references mother class
  */
-
-abstract class ModeleNumRefPayments
+abstract class ModeleNumRefPayments extends CommonNumRefGenerator
 {
-	var $error='';
+	/**
+	 * 	Return next free value
+	 *
+	 *  @param	Societe			$objsoc     Object thirdparty
+	 *  @param  ?Paiement		$object		Object we need next value for
+	 *  @return string|int<-1,0>			Value if OK, <=0 if KO
+	 */
+	abstract public function getNextValue($objsoc, $object);
 
 	/**
-	 *	Return if a module can be used or not
+	 *  Return an example of numbering
 	 *
-	 *	@return		boolean     true if module can be used
+	 *  @return     string      Example
 	 */
-	function isEnabled()
-	{
-		return true;
-	}
-
-	/**
-	 *	Return the default description of numbering module
-	 *
-	 *	@return     string      Texte descripif
-	 */
-	function info()
-	{
-		global $langs;
-		$langs->load("bills");
-		return $langs->trans("NoDescription");
-	}
-
-	/**
-	 *	Return numbering example
-	 *
-	 *	@return     string      Example
-	 */
-	function getExample()
-	{
-		global $langs;
-		$langs->load("bills");
-		return $langs->trans("NoExample");
-	}
-
-	/**
-	 *  Test if the existing numbers in the database do not cause conflicts that would prevent this numbering run.
-	 *
-	 *	@return     boolean     false si conflit, true si ok
-	 */
-	function canBeActivated()
-	{
-		return true;
-	}
-
-	/**
-	 *	Returns the next value
-	 *
-	 *	@param	Societe		$objsoc     Object thirdparty
-	 *	@param	Object		$object		Object we need next value for
-	 *	@return	string      Valeur
-	 */
-	function getNextValue($objsoc,$object)
-	{
-		global $langs;
-		return $langs->trans("NotAvailable");
-	}
-
-	/**
-	 *	Returns the module numbering version
-	 *
-	 *	@return     string      Value
-	 */
-	function getVersion()
-	{
-		global $langs;
-		$langs->load("admin");
-
-		if ($this->version == 'development') return $langs->trans("VersionDevelopment");
-		if ($this->version == 'experimental') return $langs->trans("VersionExperimental");
-		if ($this->version == 'dolibarr') return DOL_VERSION;
-		if ($this->version) return $this->version;
-		return $langs->trans("NotAvailable");
-	}
+	abstract public function getExample();
 }

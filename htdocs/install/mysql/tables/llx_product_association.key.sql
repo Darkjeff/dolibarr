@@ -12,7 +12,7 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ============================================================================
 
@@ -20,3 +20,4 @@
 ALTER TABLE llx_product_association ADD UNIQUE INDEX uk_product_association (fk_product_pere, fk_product_fils);
 
 ALTER TABLE llx_product_association ADD INDEX idx_product_association_fils (fk_product_fils);
+

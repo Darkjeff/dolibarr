@@ -13,15 +13,15 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ===================================================================
 
 create table llx_bank_url
 (
   rowid           integer AUTO_INCREMENT PRIMARY KEY,
-  fk_bank         integer,
-  url_id          integer,
+  fk_bank         integer,								-- ID in llx_bank
+  url_id          integer,								-- ID of object (invoice, payment, customer, ...). Type is in type field.
   url             varchar(255),
   label           varchar(255),
   type            varchar(24) NOT NULL

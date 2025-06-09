@@ -12,8 +12,8 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ============================================================================
 
-ALTER TABLE llx_commande_fournisseurdet_extrafields ADD INDEX idx_commande_fournisseurdet_extrafields (fk_object);
+ALTER TABLE llx_commande_fournisseurdet_extrafields ADD UNIQUE INDEX uk_commande_fournisseurdet_extrafields (fk_object);

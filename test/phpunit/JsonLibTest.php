@@ -1,5 +1,6 @@
 <?php
 /* Copyright (C) 2010-2012 Laurent Destailleur  <eldy@users.sourceforge.net>
+ * Copyright (C) 2023      Alexandre Janniaux   <alexandre.janniaux@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -12,32 +13,57 @@
  * GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * or see http://www.gnu.org/
+ * along with this program. If not, see <https://www.gnu.org/licenses/>.
+ * or see https://www.gnu.org/
  */
 
 /**
  *      \file       test/phpunit/JsonLibTest.php
- *		\ingroup    test
+ *      \ingroup    test
  *      \brief      PHPUnit test
- *		\remarks	To run this script as CLI:  phpunit filename.php
+ *      \remarks    To run this script as CLI:  phpunit filename.php
  */
+
+if (! defined('NOREQUIREUSER')) {
+	define('PHPUNIT_MODE', 1);
+}
 
 global $conf,$user,$langs,$db;
 //define('TEST_DB_FORCE_TYPE','mysql');	// This is to force using mysql driver
 //require_once 'PHPUnit/Autoload.php';
 require_once dirname(__FILE__).'/../../htdocs/master.inc.php';
+require_once dirname(__FILE__).'/CommonClassTest.class.php';
 
-if (! defined('NOREQUIREUSER'))  define('NOREQUIREUSER','1');
-if (! defined('NOREQUIREDB'))    define('NOREQUIREDB','1');
-if (! defined('NOREQUIRESOC'))   define('NOREQUIRESOC','1');
-if (! defined('NOREQUIRETRAN'))  define('NOREQUIRETRAN','1');
-if (! defined('NOCSRFCHECK'))    define('NOCSRFCHECK','1');
-if (! defined('NOTOKENRENEWAL')) define('NOTOKENRENEWAL','1');
-if (! defined('NOREQUIREMENU'))  define('NOREQUIREMENU','1'); // If there is no menu to show
-if (! defined('NOREQUIREHTML'))  define('NOREQUIREHTML','1'); // If we don't need to load the html.form.class.php
-if (! defined('NOREQUIREAJAX'))  define('NOREQUIREAJAX','1');
-if (! defined("NOLOGIN"))        define("NOLOGIN",'1');       // If this page is public (can be called outside logged session)
+if (! defined('NOREQUIREUSER')) {
+	define('NOREQUIREUSER', '1');
+}
+if (! defined('NOREQUIREDB')) {
+	define('NOREQUIREDB', '1');
+}
+if (! defined('NOREQUIRESOC')) {
+	define('NOREQUIRESOC', '1');
+}
+if (! defined('NOREQUIRETRAN')) {
+	define('NOREQUIRETRAN', '1');
+}
+if (! defined('NOCSRFCHECK')) {
+	define('NOCSRFCHECK', '1');
+}
+if (! defined('NOTOKENRENEWAL')) {
+	define('NOTOKENRENEWAL', '1');
+}
+if (! defined('NOREQUIREMENU')) {
+	define('NOREQUIREMENU', '1'); // If there is no menu to show
+}
+if (! defined('NOREQUIREHTML')) {
+	define('NOREQUIREHTML', '1'); // If we don't need to load the html.form.class.php
+}
+if (! defined('NOREQUIREAJAX')) {
+	define('NOREQUIREAJAX', '1');
+}
+if (! defined("NOLOGIN")) {
+	define("NOLOGIN", '1');       // If this page is public (can be called outside logged session)
+}
 
 
 /**
@@ -47,125 +73,80 @@ if (! defined("NOLOGIN"))        define("NOLOGIN",'1');       // If this page is
  * @backupStaticAttributes enabled
  * @remarks	backupGlobals must be disabled to have db,conf,user and lang not erased.
  */
-class JsonLibTest extends PHPUnit_Framework_TestCase
+class JsonLibTest extends CommonClassTest
 {
-    protected $savconf;
-    protected $savuser;
-    protected $savlangs;
-    protected $savdb;
-
-    /**
-     * Constructor
-     * We save global variables into local variables
-     *
-     * @return CoreTest
-     */
-    function __construct()
-    {
-        //$this->sharedFixture
-        global $conf,$user,$langs,$db;
-        $this->savconf=$conf;
-        $this->savuser=$user;
-        $this->savlangs=$langs;
-        $this->savdb=$db;
-
-        print __METHOD__." db->type=".$db->type." user->id=".$user->id;
-        //print " - db ".$db->db;
-        print "\n";
-    }
-
-    // Static methods
-    public static function setUpBeforeClass()
-    {
-        global $conf,$user,$langs,$db;
-        //$db->begin();	// This is to have all actions inside a transaction even if test launched without suite.
-
-        print __METHOD__."\n";
-    }
-
-    // tear down after class
-    public static function tearDownAfterClass()
-    {
-        global $conf,$user,$langs,$db;
-        //$db->rollback();
-
-        print __METHOD__."\n";
-    }
-
 	/**
-	 * Init phpunit tests
+	 * testJsonEncode
 	 *
-	 * @return	void
+	 * @return  void
 	 */
-    protected function setUp()
-    {
-        global $conf,$user,$langs,$db;
-        $conf=$this->savconf;
-        $user=$this->savuser;
-        $langs=$this->savlangs;
-        $db=$this->savdb;
+	public function testJsonEncode()
+	{
+		//$this->sharedFixture
+		global $conf,$user,$langs,$db;
+		$this->savconf = $conf;
+		$this->savuser = $user;
+		$this->savlangs = $langs;
+		$this->savdb = $db;
 
-        print __METHOD__."\n";
-    }
-	/**
-	 * End phpunit tests
-	 *
-	 * @return	void
-	 */
-    protected function tearDown()
-    {
-        print __METHOD__."\n";
-    }
+		// Try to decode a string encoded with serialize
+		$encoded = 'a:1:{s:7:"options";a:3:{s:3:"app";s:11:"Application";s:6:"system";s:6:"System";s:6:"option";s:6:"Option";}}';
+		$decoded = json_decode($encoded, true);
+		$this->assertEquals(null, $decoded, 'test to json_decode() a string that was encoded with serialize()');
 
-    /**
-     * testJsonEncode
-     *
-     * @return	void
-     */
-    public function testJsonEncode()
-    {
-        //$this->sharedFixture
-        global $conf,$user,$langs,$db;
-        $this->savconf=$conf;
-        $this->savuser=$user;
-        $this->savlangs=$langs;
-        $this->savdb=$db;
+		$encoded = 'rubishstring!aa{bcd';
+		$decoded = json_decode($encoded, true);
+		$this->assertEquals(null, $decoded, 'test to json_decode() a string that was encoded with serialize()');
 
-        // Do a test with an array starting with 0
-        $arraytotest=array(0=>array('key'=>1,'value'=>'PRODREF','label'=>'Product ref with é and special chars \\ \' "'));
-		$arrayencodedexpected='[{"key":1,"value":"PRODREF","label":"Product ref with \u00e9 and special chars \\\\ \' \""}]';
+		// Do a test with an array starting with 0
+		$arraytotest = array(0 => array('key' => 1,'value' => 'PRODREF','label' => 'Product ref with é and special chars \\ \' "'));
+		$arrayencodedexpected = '[{"key":1,"value":"PRODREF","label":"Product ref with \u00e9 and special chars \\\\ \' \""}]';
 
-        $encoded=json_encode($arraytotest);
-        $this->assertEquals($arrayencodedexpected,$encoded);
-        $decoded=json_decode($encoded,true);
-        $this->assertEquals($arraytotest,$decoded,'test for json_xxx');
+		$encoded = json_encode($arraytotest);
+		$this->assertEquals($arrayencodedexpected, $encoded);
+		$decoded = json_decode($encoded, true);
+		$this->assertEquals($arraytotest, $decoded, 'test for json_xxx');
 
-        $encoded=dol_json_encode($arraytotest);
-        $this->assertEquals($arrayencodedexpected,$encoded);
-        $decoded=dol_json_decode($encoded,true);
-        $this->assertEquals($arraytotest,$decoded,'test for dol_json_xxx');
+		/*
+		$encoded = dol_json_encode($arraytotest);
+		$this->assertEquals($arrayencodedexpected, $encoded);
+		$decoded = dol_json_decode($encoded, true);
+		$this->assertEquals($arraytotest, $decoded, 'test for dol_json_xxx');
+		*/
 
 		// Same test but array start with 2 instead of 0
-        $arraytotest=array(2=>array('key'=>1,'value'=>'PRODREF','label'=>'Product ref with é and special chars \\ \' "'));
-		$arrayencodedexpected='{"2":{"key":1,"value":"PRODREF","label":"Product ref with \u00e9 and special chars \\\\ \' \""}}';
+		$arraytotest = array(2 => array('key' => 1,'value' => 'PRODREF','label' => 'Product ref with é and special chars \\ \' "'));
+		$arrayencodedexpected = '{"2":{"key":1,"value":"PRODREF","label":"Product ref with \u00e9 and special chars \\\\ \' \""}}';
 
-        $encoded=json_encode($arraytotest);
-        $this->assertEquals($arrayencodedexpected,$encoded);
-        $decoded=json_decode($encoded,true);
-        $this->assertEquals($arraytotest,$decoded,'test for json_xxx');
+		$encoded = json_encode($arraytotest);
+		$this->assertEquals($arrayencodedexpected, $encoded);
+		$decoded = json_decode($encoded, true);
+		$this->assertEquals($arraytotest, $decoded, 'test for json_xxx');
 
-        $encoded=dol_json_encode($arraytotest);
-        $this->assertEquals($arrayencodedexpected,$encoded);
-        $decoded=dol_json_decode($encoded,true);
-        $this->assertEquals($arraytotest,$decoded,'test for dol_json_xxx');
+		/*
+		$encoded = dol_json_encode($arraytotest);
+		$this->assertEquals($arrayencodedexpected, $encoded);
+		$decoded = dol_json_decode($encoded, true);
+		$this->assertEquals($arraytotest, $decoded, 'test for dol_json_xxx');
+		*/
 
-        // Test with object
-        $now=gmmktime(12,0,0,1,1,1970);
-        $objecttotest=new stdClass();
-        $objecttotest->property1='abc';
-        $objecttotest->property2=1234;
-        $objecttotest->property3=$now;
-        $encoded=dol_json_encode($objecttotest);
-        $this->assertEquals('{"property1":"abc","property2":1234,"property3":43200}',$encoded);
-    }
+		$encoded = json_encode(123);
+		$this->assertEquals(123, $encoded);
+		$decoded = json_decode($encoded, true);
+		$this->assertEquals(123, $decoded, 'test for json_xxx 123');
+
+		$encoded = json_encode('abc');
+		$this->assertEquals('"abc"', $encoded);
+		$decoded = json_decode($encoded, true);
+		$this->assertEquals('abc', $decoded, "test for json_xxx 'abc'");
+
+		// Test with object
+		$now = gmmktime(12, 0, 0, 1, 1, 1970);
+		$objecttotest = new stdClass();
+		$objecttotest->property1 = 'abc';
+		$objecttotest->property2 = 1234;
+		$objecttotest->property3 = $now;
+		$encoded = json_encode($objecttotest);
+		$this->assertEquals('{"property1":"abc","property2":1234,"property3":43200}', $encoded);
+	}
 }

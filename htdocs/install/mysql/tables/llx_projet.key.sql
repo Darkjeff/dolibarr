@@ -1,7 +1,7 @@
 -- ============================================================================
 -- Copyright (C) 2002-2004 Rodolphe Quiedeville <rodolphe@quiedeville.org>
 -- Copyright (C) 2004-2009 Laurent Destailleur  <eldy@users.sourceforge.net>
--- Copyright (C) 2005-2009 Regis Houssin        <regis.houssin@capnetworks.com>
+-- Copyright (C) 2005-2009 Regis Houssin        <regis.houssin@inodbox.com>
 --
 -- This program is free software; you can redistribute it and/or modify
 -- it under the terms of the GNU General Public License as published by
@@ -14,7 +14,7 @@
 -- GNU General Public License for more details.
 --
 -- You should have received a copy of the GNU General Public License
--- along with this program. If not, see <http://www.gnu.org/licenses/>.
+-- along with this program. If not, see <https://www.gnu.org/licenses/>.
 --
 -- ============================================================================
 
@@ -22,4 +22,8 @@
 ALTER TABLE llx_projet ADD UNIQUE INDEX uk_projet_ref (ref, entity);
 
 ALTER TABLE llx_projet ADD INDEX idx_projet_fk_soc (fk_soc);
+ALTER TABLE llx_projet ADD INDEX idx_projet_ref (ref);
+ALTER TABLE llx_projet ADD INDEX idx_projet_fk_statut (fk_statut);
+ALTER TABLE llx_projet ADD INDEX idx_projet_fk_opp_status (fk_opp_status);
+
 ALTER TABLE llx_projet ADD CONSTRAINT fk_projet_fk_soc FOREIGN KEY (fk_soc) REFERENCES llx_societe (rowid);
