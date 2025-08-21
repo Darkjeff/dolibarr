@@ -243,6 +243,7 @@ class BookKeeping extends CommonObject
 		}
 		if (isset($this->doc_ref)) {
 			$this->doc_ref = trim($this->doc_ref);
+			$this->doc_ref = dol_trunc($this->doc_ref, 300); // We limit to 300 chars to avoid problems with too long ref in DB
 		}
 		if (isset($this->fk_doc)) {
 			$this->fk_doc = (int) $this->fk_doc;
@@ -1107,7 +1108,7 @@ class BookKeeping extends CommonObject
 					$line->multicurrency_amount = $obj->multicurrency_amount;
 					$line->multicurrency_code = $obj->multicurrency_code;
 					$line->lettering_code = $obj->lettering_code;
-					$line->date_lettering = $obj->date_lettering;
+					$line->date_lettering = $this->db->jdate($obj->date_lettering);
 					$line->fk_user_author = $obj->fk_user_author;
 					$line->import_key = $obj->import_key;
 					$line->code_journal = $obj->code_journal;
@@ -1192,7 +1193,7 @@ class BookKeeping extends CommonObject
 
 		// Manage filter
 		if (is_array($filter)) {	// deprecated, use $filter = USF syntax
-			dol_syslog("You are using a deprecated use of fetchAll. filter parameter mus be an USF string now.", LOG_WARNING);
+			dol_syslog("You are using a deprecated use of fetchAll. filter parameter must be an USF string now.", LOG_WARNING);
 			$sqlwhere = array();
 			if (count($filter) > 0) {
 				foreach ($filter as $key => $value) {
@@ -1300,7 +1301,7 @@ class BookKeeping extends CommonObject
 				$line->amount = $obj->amount;
 				$line->sens = $obj->sens;
 				$line->lettering_code = $obj->lettering_code;
-				$line->date_lettering = $obj->date_lettering;
+				$line->date_lettering = $this->db->jdate($obj->date_lettering);
 				$line->fk_user_author = $obj->fk_user_author;
 				$line->import_key = $obj->import_key;
 				$line->code_journal = $obj->code_journal;
@@ -3177,7 +3178,7 @@ class BookKeeping extends CommonObject
 								$error++;
 							}
 							$objtmp = $this->db->fetch_object($result);
-							$bookkeeping->subledger_label = $objtmp->subledger_label; // latest subledger label used
+							$bookkeeping->subledger_label = $objtmp->subledger_label ?? null; // latest subledger label used
 						} else {
 							$bookkeeping->subledger_account = null;
 							$bookkeeping->subledger_label = null;
@@ -3903,4 +3904,9 @@ class BookKeepingLine extends CommonObjectLine
 	 * @var int|string
 	 */
 	public $date_lim_reglement;
+
+	/**
+	 * @var string
+	 */
+	public $code_tiers;
 }

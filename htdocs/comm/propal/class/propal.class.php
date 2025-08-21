@@ -197,6 +197,7 @@ class Propal extends CommonObject
 
 	/**
 	 * @var User user identified by user_author_id
+	 * @deprecated Set only $user_author_id
 	 */
 	public $author;
 
@@ -621,8 +622,8 @@ class Propal extends CommonObject
 	 *      @param		int			$fk_fournprice		Id supplier price
 	 *      @param		float|string	$pa_ht			Buying price without tax ('' to keep PMP unchanged or a float)
 	 *      @param		string		$label				???
-	 *		@param      int|string	$date_start       	Start date of the line
-	 *		@param      int|string	$date_end         	End date of the line
+	 *		@param      int|''		$date_start       	Start date of the line
+	 *		@param      int|''		$date_end         	End date of the line
 	 *      @param		array<string,mixed>	$array_options	extrafields array
 	 * 		@param 		int|null	$fk_unit 			Code of the unit to use. Null to use the default one
 	 *      @param		string		$origin				Depend on global conf MAIN_CREATEFROM_KEEP_LINE_ORIGIN_INFORMATION can be 'orderdet', 'propaldet'..., else 'order','propal,'....
@@ -924,8 +925,8 @@ class Propal extends CommonObject
 	 *  @param		float|string	$pa_ht			Price (without tax) of product when it was bought (Can be '' to keep AWP unchanged or a float value)
 	 *  @param		string		$label				???
 	 *  @param		int			$type				0/1=Product/service
-	 *	@param      int|string	$date_start       	Start date of the line
-	 *	@param      int|string	$date_end         	End date of the line
+	 *	@param      int|''		$date_start       	Start date of the line
+	 *	@param      int|''		$date_end         	End date of the line
 	 *  @param		array<string,mixed>	$array_options	extrafields array
 	 * 	@param 		int|null	$fk_unit 			Code of the unit to use. Null to use the default one
 	 * 	@param		float		$pu_ht_devise		Unit price in currency
@@ -3554,13 +3555,13 @@ class Propal extends CommonObject
 			$status = 0;
 			$label = $labelShort = '';
 			if ($mode == 'opened') {
-				$delay_warning = $conf->propal->cloture->warning_delay;
+				$delay_warning = getWarningDelay('propal', 'cloture');
 				$status = self::STATUS_VALIDATED;
 				$label = $langs->transnoentitiesnoconv("PropalsToClose");
 				$labelShort = $langs->transnoentitiesnoconv("ToAcceptRefuse");
 			}
 			if ($mode == 'signed') {
-				$delay_warning = $conf->propal->facturation->warning_delay;
+				$delay_warning = getWarningDelay('propal', 'facturation');
 				$status = self::STATUS_SIGNED;
 				$label = $langs->trans("PropalsToBill"); // We set here bill but may be billed or ordered
 				$labelShort = $langs->trans("ToBill");
@@ -3845,6 +3846,9 @@ class Propal extends CommonObject
 			}
 			if (!empty($this->date)) {
 				$datas['date'] = '<br><b>'.$langs->trans('Date').':</b> '.dol_print_date($this->date, 'day');
+			}
+			if (!empty($this->date_signature)) {
+				$datas['datesignature'] = '<br><b>'.$langs->trans('DateSigning').':</b> '.dol_print_date($this->date_signature, 'day');
 			}
 			if (!empty($this->delivery_date)) {
 				$datas['deliverydate'] = '<br><b>'.$langs->trans('DeliveryDate').':</b> '.dol_print_date($this->delivery_date, 'dayhour');

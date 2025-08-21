@@ -9,7 +9,8 @@
 #      files.  These should be fixed but are ignored for now
 #      so that continuous integration does not complain about it
 #      in order to detect newly introduced issues with the keys.
-#
+
+
 # ██████╗  █████╗ ██████╗ ████████╗ ██╗
 # ██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝███║
 # ██████╔╝███████║██████╔╝   ██║   ╚██║
@@ -76,6 +77,7 @@ ViewPageInNewTab
 WEBSITE_PAGE_EXAMPLE
 WebpageContent
 YourTicketSuccessfullySaved
+
 #
 # ██████╗  █████╗ ██████╗ ████████╗██████╗
 # ██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝╚════██╗
@@ -216,7 +218,6 @@ Control
 Convert
 Core
 Count
-CreateRemoteOrder
 CreateRepeatableIntervention
 Created
 CronCannotLoadLib
@@ -308,7 +309,6 @@ ErrorBadSocialNetworkValue
 ErrorBadStatus
 ErrorBadValue
 ErrorBadValueForBatch
-ErrorBadValueForDate
 ErrorCanNotDeleteDir
 ErrorCantSplitAUsedDiscount
 ErrorChartOfAccountSystemNotSelected
@@ -472,7 +472,6 @@ Lifetime
 LinkedElementsInvalidDeleted
 LinkedToAConcialitedTransaction
 ListOfAttendeesPerConference
-ListOfBookmark
 ListTicketsLinkToContract
 Load
 LocalTaxReport
@@ -512,7 +511,6 @@ Modulebuilder
 ModulebuilderSetup
 MonthShort
 MonthVeryShort
-Morphy
 Movement
 MultiCompanyMode
 Multicompanies
@@ -571,7 +569,6 @@ NoType
 NoTypeOfPagePleaseEditDictionary
 NoURL
 No_record_on_multicurrency_rate
-NobodyHasPermissionToValidateExpenseReport
 NotAllExportedMovementsCouldBeRecordedAsExportedOrValidated
 NotEnoughForAllOrders
 NotFound
